@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Encomiendas" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Debe heredar de AppCompat / Material -->
+    <style name="Theme.Encomiendas" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- (Opcional) personalizaciones -->
+        <!-- <item name="android:statusBarColor">?attr/colorPrimary</item> -->
+    </style>
 </resources>

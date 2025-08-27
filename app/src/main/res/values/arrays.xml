@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="tipos_producto">
+        <item>Documento</item>
+        <item>Paquete pequeño</item>
+        <item>Paquete mediano</item>
+        <item>Paquete grande</item>
+        <item>Frágil</item>
+    </string-array>
+
+    <string-array name="formas_pago">
+        <item>Contraentrega</item>
+        <item>Tarjeta</item>
+        <item>Transferencia</item>
+        <item>Efectivo</item>
+    </string-array>
+
+    <!-- Lista corta de ciudades/municipios (puedes ampliar); sirve tanto para ciudades como pueblos -->
+    <string-array name="ciudades_co">
+        <item>Bogotá</item>
+        <item>Medellín</item>
+        <item>Cali</item>
+        <item>Barranquilla</item>
+        <item>Bucaramanga</item>
+        <item>Chía</item>
+        <item>Zipaquirá</item>
+        <item>Villa de Leyva</item>
+        <item>Guatavita</item>
+    </string-array>
+
+    <string-array name="tipos_zona">
+        <item>Urbana (barrio/localidad)</item>
+        <item>Rural (vereda/corregimiento)</item>
+    </string-array>
+</resources>

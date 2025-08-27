@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/registroRemitenteFragment">
+
+    <fragment
+        android:id="@+id/registroRemitenteFragment"
+        android:name="com.hfad.encomiendas.ui.RegistroRemitenteFragment"
+        android:label="Registro">
+        <action
+            android:id="@+id/action_registro_to_recoleccion"
+            app:destination="@id/solicitarRecoleccionFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/solicitarRecoleccionFragment"
+        android:name="com.hfad.encomiendas.ui.SolicitarRecoleccionFragment"
+        android:label="Solicitar recolección" />
+</navigation>
