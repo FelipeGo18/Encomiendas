@@ -12,7 +12,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -24,45 +23,34 @@ android {
                 "proguard-rules.pro"
             )
         }
-        debug {
-            // Opcional: configuración extra para debug
-            isMinifyEnabled = false
-        }
     }
 
-    // Proyecto en Java (no Kotlin en código fuente)
+    // Proyecto en Java
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    // Para acceder a las vistas sin findViewById en cada Activity/Fragment
     buildFeatures {
         viewBinding = true
-    }
-
-    // Opcional: si usas recursos duplicados de libs
-    packaging {
-        resources {
-            excludes += setOf(
-                "META-INF/DEPENDENCIES",
-                "META-INF/INDEX.LIST",
-                "META-INF/AL2.0",
-                "META-INF/LGPL2.1"
-            )
-        }
     }
 }
 
 dependencies {
-    // UI base
+    // Core/UI
+    implementation("androidx.core:core:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4") // opcional
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.cardview:cardview:1.0.0")
 
-    // Navigation (sin KTX para evitar dependencias Kotlin)
+    // Navigation (Java)
     implementation("androidx.navigation:navigation-fragment:2.7.7")
     implementation("androidx.navigation:navigation-ui:2.7.7")
+
+    // ---------- ROOM (Java) ----------
+    implementation("androidx.room:room-runtime:2.6.1")
+    annotationProcessor("androidx.room:room-compiler:2.6.1")
 
     // Tests
     testImplementation("junit:junit:4.13.2")

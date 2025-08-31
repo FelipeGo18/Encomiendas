@@ -10,65 +10,45 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <!-- Título -->
-        <TextView
-            android:id="@+id/tvTituloRegistro"
-            android:text="Crear cuenta"
-            android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp" />
-
-        <!-- Correo -->
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilEmail"
+            android:id="@+id/tilEmailLogin"
             android:hint="Correo electrónico"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
-
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etEmail"
+                android:id="@+id/etEmailLogin"
                 android:inputType="textEmailAddress"
-                android:autofillHints="emailAddress"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
-
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Contraseña -->
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilPassword"
+            android:id="@+id/tilPasswordLogin"
             android:hint="Contraseña"
             app:endIconMode="password_toggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp">
-
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etPassword"
+                android:id="@+id/etPasswordLogin"
                 android:inputType="textPassword"
-                android:autofillHints="password"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
-
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Botón principal: Registrar -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRegistrar"
-            android:text="Crear cuenta"
+            android:id="@+id/btnIniciarSesion"
+            android:text="Iniciar sesión"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp" />
 
-        <!-- Botón secundario: Ir a iniciar sesión -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnIrALogin"
+            android:id="@+id/btnIrARegistro"
             style="@style/Widget.Material3.Button.OutlinedButton"
-            android:text="Ir a iniciar sesión"
+            android:text="Crear cuenta"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp" />
-
     </LinearLayout>
 </ScrollView>

@@ -16,17 +16,23 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.hfad.encomiendas.R;
+import com.hfad.encomiendas.core.PasswordUtils;
+import com.hfad.encomiendas.data.AppDatabase;
+import com.hfad.encomiendas.data.User;
+import com.hfad.encomiendas.data.UserDao;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class RegistroRemitenteFragment extends Fragment {
 
     private TextInputLayout tilEmail, tilPassword;
     private TextInputEditText etEmail, etPassword;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_registro_remitente, container, false);
     }
 
@@ -39,34 +45,60 @@ public class RegistroRemitenteFragment extends Fragment {
         etEmail = view.findViewById(R.id.etEmail);
         etPassword = view.findViewById(R.id.etPassword);
 
+        // Botón principal: crear cuenta
         MaterialButton btnRegistrar = view.findViewById(R.id.btnRegistrar);
-        MaterialButton btnIrARecoleccion = view.findViewById(R.id.btnIrARecoleccion);
+        btnRegistrar.setOnClickListener(v -> doRegister(view));
 
-        btnRegistrar.setOnClickListener(v -> {
-            clearErrors();
-            String email = safeText(etEmail);
-            String pwd   = safeText(etPassword);
+        // Botón secundario: ir a iniciar sesión
+        MaterialButton btnIrALogin = view.findViewById(R.id.btnIrALogin);
+        btnIrALogin.setOnClickListener(v ->
+                Navigation.findNavController(view).navigate(R.id.action_registro_to_login));
+    }
 
-            boolean ok = true;
+    private void doRegister(View root) {
+        clearErrors();
 
-            if (email.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                tilEmail.setError("Ingresa un correo válido");
-                ok = false;
+        String email = safeText(etEmail);
+        String pwd   = safeText(etPassword);
+
+        boolean ok = true;
+        if (email.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            tilEmail.setError("Ingresa un correo válido");
+            ok = false;
+        }
+        if (pwd.length() < 6) {
+            tilPassword.setError("Mínimo 6 caracteres");
+            ok = false;
+        }
+        if (!ok) return;
+
+        String hash = PasswordUtils.sha256(pwd);
+        AppDatabase db = AppDatabase.getInstance(requireContext());
+
+        executor.execute(() -> {
+            UserDao dao = db.userDao();
+            User existing = dao.findByEmail(email);
+            if (existing != null) {
+                requireActivity().runOnUiThread(() ->
+                        tilEmail.setError("Ese correo ya está registrado"));
+                return;
             }
-            if (pwd.length() < 6) {
-                tilPassword.setError("Mínimo 6 caracteres");
-                ok = false;
-            }
 
-            if (!ok) return;
+            User u = new User();
+            u.email = email;
+            u.passwordHash = hash;
+            u.createdAt = System.currentTimeMillis();
+            dao.insert(u);
 
-            // MOCK de registro: aquí luego conectarás backend/Room/Firebase
-            Toast.makeText(requireContext(), "Registro exitoso (mock)", Toast.LENGTH_SHORT).show();
+            // Éxito: ir a Login y prellenar el correo (no inicia sesión automática)
+            requireActivity().runOnUiThread(() -> {
+                Toast.makeText(requireContext(), "Cuenta creada. Inicia sesión.", Toast.LENGTH_SHORT).show();
+                Bundle args = new Bundle();
+                args.putString("email_prefill", email);
+                Navigation.findNavController(root)
+                        .navigate(R.id.action_registro_to_login, args);
+            });
         });
-
-        btnIrARecoleccion.setOnClickListener(v ->
-                Navigation.findNavController(view)
-                        .navigate(R.id.action_registro_to_recoleccion));
     }
 
     private String safeText(TextInputEditText et) {

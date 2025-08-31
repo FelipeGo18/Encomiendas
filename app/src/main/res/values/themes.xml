@@ -2,7 +2,6 @@
 <resources>
     <!-- Debe heredar de AppCompat / Material -->
     <style name="Theme.Encomiendas" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- (Opcional) personalizaciones -->
-        <!-- <item name="android:statusBarColor">?attr/colorPrimary</item> -->
+
     </style>
 </resources>

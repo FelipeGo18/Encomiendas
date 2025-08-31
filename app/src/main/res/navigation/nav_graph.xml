@@ -2,15 +2,36 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/registroRemitenteFragment">
+    app:startDestination="@id/loginFragment">
+
+    <fragment
+        android:id="@+id/loginFragment"
+        android:name="com.hfad.encomiendas.ui.LoginFragment"
+        android:label="Iniciar sesión">
+
+        <!-- Evita volver al login cuando entras a recolección -->
+        <action
+            android:id="@+id/action_login_to_recoleccion"
+            app:destination="@id/solicitarRecoleccionFragment"
+            app:popUpTo="@id/loginFragment"
+            app:popUpToInclusive="true" />
+
+        <action
+            android:id="@+id/action_login_to_registro"
+            app:destination="@id/registroRemitenteFragment" />
+    </fragment>
 
     <fragment
         android:id="@+id/registroRemitenteFragment"
         android:name="com.hfad.encomiendas.ui.RegistroRemitenteFragment"
         android:label="Registro">
+
+        <!-- Opcional: evita volver al registro cuando regresas al login -->
         <action
-            android:id="@+id/action_registro_to_recoleccion"
-            app:destination="@id/solicitarRecoleccionFragment" />
+            android:id="@+id/action_registro_to_login"
+            app:destination="@id/loginFragment"
+            app:popUpTo="@id/registroRemitenteFragment"
+            app:popUpToInclusive="true" />
     </fragment>
 
     <fragment
