@@ -7,14 +7,9 @@ import androidx.room.PrimaryKey;
 
 @Entity(tableName = "users", indices = {@Index(value = {"email"}, unique = true)})
 public class User {
-    @PrimaryKey(autoGenerate = true)
-    public int id;
-
-    @NonNull
-    public String email = "";
-
-    // Guarda hash, no texto plano (demo educativa; en producción usa bcrypt/argon2)
+    @PrimaryKey(autoGenerate = true) public int id;
+    @NonNull public String email = "";
     public String passwordHash;
-
-    public long createdAt; // epoch millis
+    public String rol; // "REMITENTE", "ASIGNADOR", "RECOLECTOR"
+    public long createdAt;
 }

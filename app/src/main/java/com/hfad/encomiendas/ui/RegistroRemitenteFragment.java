@@ -45,14 +45,16 @@ public class RegistroRemitenteFragment extends Fragment {
         etEmail = view.findViewById(R.id.etEmail);
         etPassword = view.findViewById(R.id.etPassword);
 
-        // Botón principal: crear cuenta
+        // Botón: crear cuenta
         MaterialButton btnRegistrar = view.findViewById(R.id.btnRegistrar);
         btnRegistrar.setOnClickListener(v -> doRegister(view));
 
-        // Botón secundario: ir a iniciar sesión
+        // Botón: ir a iniciar sesión
         MaterialButton btnIrALogin = view.findViewById(R.id.btnIrALogin);
-        btnIrALogin.setOnClickListener(v ->
-                Navigation.findNavController(view).navigate(R.id.action_registro_to_login));
+        if (btnIrALogin != null) {
+            btnIrALogin.setOnClickListener(v ->
+                    Navigation.findNavController(view).navigate(R.id.action_registro_to_login));
+        }
     }
 
     private void doRegister(View root) {
@@ -87,10 +89,10 @@ public class RegistroRemitenteFragment extends Fragment {
             User u = new User();
             u.email = email;
             u.passwordHash = hash;
+            u.rol = "REMITENTE"; // rol por defecto al registrarse aquí
             u.createdAt = System.currentTimeMillis();
             dao.insert(u);
 
-            // Éxito: ir a Login y prellenar el correo (no inicia sesión automática)
             requireActivity().runOnUiThread(() -> {
                 Toast.makeText(requireContext(), "Cuenta creada. Inicia sesión.", Toast.LENGTH_SHORT).show();
                 Bundle args = new Bundle();

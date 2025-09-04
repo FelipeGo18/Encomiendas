@@ -8,26 +8,23 @@ public class Solicitud {
     @PrimaryKey(autoGenerate = true)
     public int id;
 
-    public String userEmail;      // “FK” simple por email (para demo)
-    public String municipio;      // etCiudadRecogida
-    public String tipoZona;       // Urbana/Rural
-    public String barrioVereda;   // requerido si Rural
-    public String direccion;      // línea principal
-    public String tipoVia;        // opcional (desglose)
-    public String via;            // opcional
-    public String numero;         // opcional
-    public String aptoBloque;     // opcional
-    public String indicaciones;   // opcional
+    public String tipoProducto;
+    public String ciudadOrigen;
+    public String ciudadDestino;
+    public String formaPago;
+    public Double valorDeclarado;
 
-    public String fecha;          // YYYY-MM-DD
-    public String horaDesde;      // HH:MM
-    public String horaHasta;      // HH:MM
+    // NUEVO
+    public String tamanoPaquete; // SOBRE | PEQUENO | MEDIANO | GRANDE | VOLUMINOSO
 
-    public String tipoProducto;   // dropdown
-    public String ciudadOrigen;   // dropdown
-    public String ciudadDestino;  // dropdown
-    public String formaPago;      // dropdown
-    public long   valorDeclarado; // en COP (entero)
+    public String municipio;
+    public String direccion;
+    public String barrioVereda;
 
-    public long createdAt;        // epoch millis
+    public String fecha;
+    public String horaDesde;
+    public String horaHasta;
+
+    public long createdAt;
+    public Long updatedAt;
 }

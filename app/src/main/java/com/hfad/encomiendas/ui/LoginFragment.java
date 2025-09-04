@@ -10,6 +10,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.navigation.NavOptions;
 import androidx.navigation.Navigation;
 
 import com.google.android.material.button.MaterialButton;
@@ -31,12 +32,14 @@ public class LoginFragment extends Fragment {
     private TextInputEditText etEmail, etPassword;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    @Nullable @Override
+    @Nullable
+    @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_login, container, false);
     }
 
-    @Override public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
         tilEmail = view.findViewById(R.id.tilEmailLogin);
@@ -85,9 +88,25 @@ public class LoginFragment extends Fragment {
                     tilPassword.setError("Credenciales incorrectas");
                     Toast.makeText(requireContext(), "Correo o contraseña inválidos", Toast.LENGTH_SHORT).show();
                 } else {
-                    sm.login(email);
+                    String role = (u.rol == null || u.rol.isEmpty()) ? "REMITENTE" : u.rol;
+                    sm.login(email, role);
                     Toast.makeText(requireContext(), "Bienvenido", Toast.LENGTH_SHORT).show();
-                    Navigation.findNavController(root).navigate(R.id.action_login_to_recoleccion);
+
+                    // Limpia login del back stack
+                    NavOptions opts = new NavOptions.Builder()
+                            .setPopUpTo(R.id.loginFragment, true)
+                            .build();
+
+                    if ("ASIGNADOR".equalsIgnoreCase(role)) {
+                        Navigation.findNavController(root).navigate(R.id.asignadorFragment, null, opts);
+
+                    } else if ("RECOLECTOR".equalsIgnoreCase(role)) {
+                        Navigation.findNavController(root).navigate(R.id.misAsignacionesFragment, null, opts);
+
+                    } else { // REMITENTE u otros
+                        // Puedes usar la acción ya definida en el nav_graph (con popUpTo en el action) o forzar opts:
+                        Navigation.findNavController(root).navigate(R.id.action_login_to_recoleccion, null, opts);
+                    }
                 }
             });
         });

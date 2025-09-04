@@ -4,38 +4,93 @@
     android:id="@+id/nav_graph"
     app:startDestination="@id/loginFragment">
 
+    <!-- LOGIN -->
     <fragment
         android:id="@+id/loginFragment"
         android:name="com.hfad.encomiendas.ui.LoginFragment"
         android:label="Iniciar sesión">
-
-        <!-- Evita volver al login cuando entras a recolección -->
+        <!-- Ir a registro -->
+        <action
+            android:id="@+id/action_login_to_registro"
+            app:destination="@id/registroRemitenteFragment" />
+        <!-- Entrar como REMITENTE -->
         <action
             android:id="@+id/action_login_to_recoleccion"
             app:destination="@id/solicitarRecoleccionFragment"
             app:popUpTo="@id/loginFragment"
             app:popUpToInclusive="true" />
-
+        <!-- Entrar como ASIGNADOR -->
         <action
-            android:id="@+id/action_login_to_registro"
-            app:destination="@id/registroRemitenteFragment" />
+            android:id="@+id/action_login_to_asignador"
+            app:destination="@id/asignadorFragment"
+            app:popUpTo="@id/loginFragment"
+            app:popUpToInclusive="true" />
+        <!-- Entrar como RECOLECTOR -->
+        <action
+            android:id="@+id/action_login_to_misAsignaciones"
+            app:destination="@id/misAsignacionesFragment"
+            app:popUpTo="@id/loginFragment"
+            app:popUpToInclusive="true" />
     </fragment>
 
+    <!-- REGISTRO (Remitente) -->
     <fragment
         android:id="@+id/registroRemitenteFragment"
         android:name="com.hfad.encomiendas.ui.RegistroRemitenteFragment"
         android:label="Registro">
-
-        <!-- Opcional: evita volver al registro cuando regresas al login -->
         <action
             android:id="@+id/action_registro_to_login"
-            app:destination="@id/loginFragment"
-            app:popUpTo="@id/registroRemitenteFragment"
-            app:popUpToInclusive="true" />
+            app:destination="@id/loginFragment" />
     </fragment>
 
+    <!-- REMITENTE: Solicitar recolección -->
     <fragment
         android:id="@+id/solicitarRecoleccionFragment"
         android:name="com.hfad.encomiendas.ui.SolicitarRecoleccionFragment"
         android:label="Solicitar recolección" />
+
+    <!-- ASIGNADOR: Panel por zonas -->
+    <fragment
+        android:id="@+id/asignadorFragment"
+        android:name="com.hfad.encomiendas.ui.AsignadorFragment"
+        android:label="Asignador" >
+        <!-- Ver detalle de una zona concreta -->
+        <action
+            android:id="@+id/action_asignador_to_zonaDetalle"
+            app:destination="@id/zonaDetalleFragment" />
+    </fragment>
+
+    <!-- ASIGNADOR: Detalle de zona (pendientes/asignadas) -->
+    <fragment
+        android:id="@+id/zonaDetalleFragment"
+        android:name="com.hfad.encomiendas.ui.ZonaDetalleFragment"
+        android:label="Detalle de zona">
+        <argument
+            android:name="fecha"
+            app:argType="string" />
+        <argument
+            android:name="zona"
+            app:argType="string" />
+    </fragment>
+
+    <!-- RECOLECTOR: Lista de asignaciones propias -->
+    <fragment
+        android:id="@+id/misAsignacionesFragment"
+        android:name="com.hfad.encomiendas.ui.MisAsignacionesFragment"
+        android:label="Mis asignaciones">
+        <action
+            android:id="@+id/action_misAsignaciones_to_detalle"
+            app:destination="@id/detalleRecoleccionFragment" />
+    </fragment>
+
+    <!-- RECOLECTOR: Detalle (foto + firma) -->
+    <fragment
+        android:id="@+id/detalleRecoleccionFragment"
+        android:name="com.hfad.encomiendas.ui.DetalleRecoleccionFragment"
+        android:label="Detalle de recolección">
+        <argument
+            android:name="asignacionId"
+            app:argType="integer" />
+    </fragment>
+
 </navigation>

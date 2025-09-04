@@ -10,9 +10,11 @@ public class SessionManager {
         sp = ctx.getSharedPreferences("session", Context.MODE_PRIVATE);
     }
 
-    public void login(String email) {
-        sp.edit().putBoolean("loggedIn", true)
+    public void login(String email, String rol) {
+        sp.edit()
+                .putBoolean("logged", true)
                 .putString("email", email)
+                .putString("role", rol)
                 .apply();
     }
 
@@ -21,10 +23,10 @@ public class SessionManager {
     }
 
     public boolean isLoggedIn() {
-        return sp.getBoolean("loggedIn", false);
+        return sp.getBoolean("logged", false);
     }
 
-    public String getEmail() {
-        return sp.getString("email", null);
-    }
+    public String getEmail() { return sp.getString("email", null); }
+
+    public String getRole() { return sp.getString("role", null); }
 }

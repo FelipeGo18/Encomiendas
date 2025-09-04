@@ -6,16 +6,25 @@ import androidx.room.Database;
 import androidx.room.Room;
 import androidx.room.RoomDatabase;
 
+// Asegúrate de importar TODAS las entidades reales que tienes:
+import com.hfad.encomiendas.data.User;
+import com.hfad.encomiendas.data.Recolector;
+import com.hfad.encomiendas.data.Solicitud;
+import com.hfad.encomiendas.data.Asignacion;
+
 @Database(
-        entities = {User.class, Solicitud.class},
-        version = 1,
+        entities = {
+                User.class,
+                Recolector.class,
+                Solicitud.class,
+                Asignacion.class
+        },
+        version = 8,                 // ⬅⬅⬅ SUBE ESTA VERSIÓN
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
-    private static volatile AppDatabase INSTANCE;
 
-    public abstract UserDao userDao();
-    public abstract SolicitudDao solicitudDao();
+    private static volatile AppDatabase INSTANCE;
 
     public static AppDatabase getInstance(Context ctx) {
         if (INSTANCE == null) {
@@ -24,12 +33,19 @@ public abstract class AppDatabase extends RoomDatabase {
                     INSTANCE = Room.databaseBuilder(
                                     ctx.getApplicationContext(),
                                     AppDatabase.class,
-                                    "encomiendas.db")
-                            .fallbackToDestructiveMigration() // solo para desarrollo
+                                    "encomiendas.db"
+                            )
+                            // En desarrollo: borra y recrea si el esquema cambió
+                            .fallbackToDestructiveMigration()
                             .build();
                 }
             }
         }
         return INSTANCE;
     }
+
+    public abstract UserDao userDao();
+    public abstract RecolectorDao recolectorDao();
+    public abstract SolicitudDao solicitudDao();
+    public abstract AsignacionDao asignacionDao();
 }

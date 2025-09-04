@@ -3,14 +3,12 @@ package com.hfad.encomiendas.ui;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.os.Bundle;
-import android.text.Editable;
 import android.text.TextUtils;
-import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
-import android.widget.AutoCompleteTextView;
+import android.widget.DatePicker;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -18,37 +16,36 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.switchmaterial.SwitchMaterial;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.hfad.encomiendas.R;
-import com.hfad.encomiendas.core.SessionManager;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Solicitud;
-import com.hfad.encomiendas.data.SolicitudDao;
 
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class SolicitarRecoleccionFragment extends Fragment {
 
     // Dropdowns
-    private AutoCompleteTextView etTipoProducto, etCiudadOrigen, etCiudadDestino, etFormaPago, etCiudadRecogida, etTipoZona;
+    private MaterialAutoCompleteTextView etCiudadRecogida;
+    private MaterialAutoCompleteTextView etTipoZona;
+    private MaterialAutoCompleteTextView etTipoProducto;
+    private MaterialAutoCompleteTextView etCiudadOrigen;
+    private MaterialAutoCompleteTextView etCiudadDestino;
+    private MaterialAutoCompleteTextView etFormaPago;
 
     // Inputs
-    private TextInputEditText etBarrioVereda, etDireccion, etTipoVia, etVia, etNumero, etAptoBloque, etIndicaciones;
-    private TextInputEditText etFecha, etHoraDesde, etHoraHasta, etValorDeclarado;
+    private TextInputEditText etBarrioVereda, etDireccion, etFecha, etHoraDesde, etHoraHasta,
+            etValorDeclarado;
 
-    // Toggle/Contenedor para desglose de dirección
-    private SwitchMaterial swDesglosar;
-    private ViewGroup llDesgloseDireccion;
+    private MaterialButton btnSolicitar;
 
-    // Persistencia
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Calendar cal = Calendar.getInstance();
+
+    public SolicitarRecoleccionFragment() {}
 
     @Nullable
     @Override
@@ -57,329 +54,160 @@ public class SolicitarRecoleccionFragment extends Fragment {
     }
 
     @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
+    public void onViewCreated(@NonNull View v, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(v, savedInstanceState);
 
-        // ---- FindViews: Dropdowns
-        etTipoProducto   = view.findViewById(R.id.etTipoProducto);
-        etCiudadOrigen   = view.findViewById(R.id.etCiudadOrigen);
-        etCiudadDestino  = view.findViewById(R.id.etCiudadDestino);
-        etFormaPago      = view.findViewById(R.id.etFormaPago);
-        etCiudadRecogida = view.findViewById(R.id.etCiudadRecogida);
-        etTipoZona       = view.findViewById(R.id.etTipoZona);
+        // Bind
+        etCiudadRecogida = v.findViewById(R.id.etCiudadRecogida);
+        etTipoZona       = v.findViewById(R.id.etTipoZona);
+        etTipoProducto   = v.findViewById(R.id.etTipoProducto);
+        etCiudadOrigen   = v.findViewById(R.id.etCiudadOrigen);
+        etCiudadDestino  = v.findViewById(R.id.etCiudadDestino);
+        etFormaPago      = v.findViewById(R.id.etFormaPago);
 
-        // ---- FindViews: Inputs
-        etBarrioVereda   = view.findViewById(R.id.etBarrioVereda);
-        etDireccion      = view.findViewById(R.id.etDireccion);
-        etTipoVia        = view.findViewById(R.id.etTipoVia);
-        etVia            = view.findViewById(R.id.etVia);
-        etNumero         = view.findViewById(R.id.etNumero);
-        etAptoBloque     = view.findViewById(R.id.etAptoBloque);
-        etIndicaciones   = view.findViewById(R.id.etIndicaciones);
+        etBarrioVereda   = v.findViewById(R.id.etBarrioVereda);
+        etDireccion      = v.findViewById(R.id.etDireccion);
+        etFecha          = v.findViewById(R.id.etFecha);
+        etHoraDesde      = v.findViewById(R.id.etHoraDesde);
+        etHoraHasta      = v.findViewById(R.id.etHoraHasta);
+        etValorDeclarado = v.findViewById(R.id.etValorDeclarado);
 
-        etFecha      = view.findViewById(R.id.etFecha);
-        etHoraDesde  = view.findViewById(R.id.etHoraDesde);
-        etHoraHasta  = view.findViewById(R.id.etHoraHasta);
+        btnSolicitar     = v.findViewById(R.id.btnSolicitar);
 
-        etValorDeclarado = view.findViewById(R.id.etValorDeclarado);
+        // Dropdowns con arrays
+        wireDropdown(etCiudadRecogida, R.array.ciudades_co);
+        wireDropdown(etTipoZona,       R.array.tipos_zona);
+        wireDropdown(etTipoProducto,   R.array.tipos_producto);
+        wireDropdown(etCiudadOrigen,   R.array.ciudades_co);
+        wireDropdown(etCiudadDestino,  R.array.ciudades_co);
+        wireDropdown(etFormaPago,      R.array.formas_pago);
 
-        // ---- Toggle/Contenedor
-        swDesglosar         = view.findViewById(R.id.swDesglosar);
-        llDesgloseDireccion = view.findViewById(R.id.llDesgloseDireccion);
+        // Pickers de fecha/hora
+        setupDateField(etFecha);
+        setupTimeField(etHoraDesde);
+        setupTimeField(etHoraHasta);
 
-        // ---- Adapters para dropdowns
-        setAdapter(etTipoProducto, R.array.tipos_producto);
-        setAdapter(etCiudadOrigen, R.array.ciudades_co);
-        setAdapter(etCiudadDestino, R.array.ciudades_co);
-        setAdapter(etFormaPago, R.array.formas_pago);
-        setAdapter(etCiudadRecogida, R.array.ciudades_co);
-        setAdapter(etTipoZona, R.array.tipos_zona);
-
-        setupDrop(etTipoProducto);
-        setupDrop(etCiudadOrigen);
-        setupDrop(etCiudadDestino);
-        setupDrop(etFormaPago);
-        setupDrop(etCiudadRecogida);
-        setupDrop(etTipoZona);
-
-        // ---- Pickers
-        setupPickers();
-
-        // ---- Desglose dirección (mostrar/ocultar)
-        setDesgloseVisible(false);
-        swDesglosar.setOnCheckedChangeListener((btn, checked) -> setDesgloseVisible(checked));
-        etDireccion.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (!swDesglosar.isChecked()) setDesgloseVisible(false);
-            }
-            @Override public void afterTextChanged(Editable s) {}
-        });
-
-        // ---- Acción principal
-        MaterialButton btnSolicitar = view.findViewById(R.id.btnSolicitar);
-        btnSolicitar.setOnClickListener(v -> onSolicitarClicked());
+        if (btnSolicitar != null) btnSolicitar.setOnClickListener(vw -> guardarSolicitud());
     }
 
-    // =============================================================================================
-    // UI handlers
-    // =============================================================================================
+    // ---------- Pickers ----------
+    private void setupDateField(@Nullable TextInputEditText et) {
+        if (et == null) return;
+        View.OnClickListener showPicker = vv -> {
+            final Calendar c = Calendar.getInstance();
+            DatePickerDialog dlg = new DatePickerDialog(
+                    requireContext(),
+                    (DatePicker dp, int y, int m, int d) -> {
+                        Calendar chosen = Calendar.getInstance();
+                        chosen.set(y, m, d, 0, 0, 0);
+                        et.setText(new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(chosen.getTime()));
+                    },
+                    c.get(Calendar.YEAR),
+                    c.get(Calendar.MONTH),
+                    c.get(Calendar.DAY_OF_MONTH)
+            );
+            dlg.show();
+        };
+        et.setOnClickListener(showPicker);
+        et.setOnFocusChangeListener((vv, hasFocus) -> { if (hasFocus) showPicker.onClick(vv); });
+    }
 
-    private void onSolicitarClicked() {
-        clearErrors();
+    private void setupTimeField(@Nullable TextInputEditText et) {
+        if (et == null) return;
+        View.OnClickListener showPicker = vv -> {
+            Calendar c = Calendar.getInstance();
+            TimePickerDialog dlg = new TimePickerDialog(
+                    requireContext(),
+                    (tp, hour, minute) -> {
+                        String hh = String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
+                        et.setText(hh);
+                    },
+                    c.get(Calendar.HOUR_OF_DAY),
+                    c.get(Calendar.MINUTE),
+                    true  // 24h
+            );
+            dlg.show();
+        };
+        et.setOnClickListener(showPicker);
+        et.setOnFocusChangeListener((vv, hasFocus) -> { if (hasFocus) showPicker.onClick(vv); });
+    }
 
-        // Requeridos básicos
-        if (isEmpty(etCiudadRecogida)) { etCiudadRecogida.setError("Requerido"); toast("Selecciona el municipio de recogida"); return; }
-        if (isEmpty(etDireccion))      { etDireccion.setError("Requerido");      toast("Ingresa la dirección");              return; }
-        if (isEmpty(etFecha))          { etFecha.setError("Requerido");          toast("Selecciona la fecha de recogida");   return; }
-        if (isEmpty(etHoraDesde))      { etHoraDesde.setError("Requerido");      toast("Selecciona la hora de inicio");      return; }
-        if (isEmpty(etHoraHasta))      { etHoraHasta.setError("Requerido");      toast("Selecciona la hora de fin");         return; }
+    private void wireDropdown(@Nullable MaterialAutoCompleteTextView view, int arrayRes) {
+        if (view == null) return;
+        String[] items = getResources().getStringArray(arrayRes);
+        view.setSimpleItems(items);
+        view.setOnClickListener(v -> view.showDropDown());
+        view.setOnFocusChangeListener((v, hasFocus) -> { if (hasFocus) view.showDropDown(); });
+    }
 
-        // Zona rural ⇒ Barrio/Vereda requerido
-        String zona = textOf(etTipoZona.getText());
-        if (zona.toLowerCase(Locale.getDefault()).contains("rural") && isEmpty(etBarrioVereda)) {
-            etBarrioVereda.setError("Requerido en zona rural");
-            toast("Indica la vereda/corregimiento para zona rural");
-            return;
+    // ---------- Guardar ----------
+    private void guardarSolicitud() {
+        String municipio   = textOf(etCiudadRecogida);
+        String tipoProd    = textOf(etTipoProducto);
+        String ciudadOri   = textOf(etCiudadOrigen);
+        String ciudadDes   = textOf(etCiudadDestino);
+        String formaPago   = textOf(etFormaPago);
+
+        String barrio      = textOf(etBarrioVereda);
+        String direccion   = textOf(etDireccion);
+        String fecha       = textOf(etFecha);
+        String desde       = textOf(etHoraDesde);
+        String hasta       = textOf(etHoraHasta);
+        Double valorDecl   = parseDoubleSafe(textOf(etValorDeclarado));
+
+        if (TextUtils.isEmpty(municipio) || TextUtils.isEmpty(direccion)) {
+            toast("Completa municipio y dirección"); return;
         }
-
-        // Fecha válida y no pasada
-        Date selDate = parseDate(textOf(etFecha));
-        if (selDate == null) {
-            etFecha.setError("Formato inválido (YYYY-MM-DD)");
-            toast("Fecha inválida. Usa formato YYYY-MM-DD.");
-            return;
+        if (TextUtils.isEmpty(fecha) || TextUtils.isEmpty(desde) || TextUtils.isEmpty(hasta)) {
+            toast("Completa la fecha y la ventana de tiempo"); return;
         }
-        if (isPast(selDate)) {
-            etFecha.setError("La fecha no puede ser pasada");
-            toast("La fecha de recogida no puede ser en el pasado");
-            return;
-        }
-
-        // Horas válidas y 'hasta' > 'desde'
-        Integer desdeMin = parseHHmmToMinutes(textOf(etHoraDesde));
-        Integer hastaMin = parseHHmmToMinutes(textOf(etHoraHasta));
-        if (desdeMin == null) { etHoraDesde.setError("Formato HH:MM"); toast("Hora desde inválida"); return; }
-        if (hastaMin == null) { etHoraHasta.setError("Formato HH:MM"); toast("Hora hasta inválida"); return; }
-        if (hastaMin <= desdeMin) {
-            etHoraHasta.setError("Debe ser mayor que la hora de inicio");
-            toast("‘Hora hasta’ debe ser mayor que ‘Hora desde’");
-            return;
-        }
-
-        // Construir entidad y guardar en Room
-        SessionManager sm = new SessionManager(requireContext());
-        String email = sm.getEmail();
 
         Solicitud s = new Solicitud();
-        s.userEmail     = email != null ? email : "anon@local";
-        s.municipio     = textOf(etCiudadRecogida.getText());
-        s.tipoZona      = textOf(etTipoZona.getText());
-        s.barrioVereda  = textOf(etBarrioVereda);
-        s.direccion     = textOf(etDireccion);
-        s.tipoVia       = textOf(etTipoVia);
-        s.via           = textOf(etVia);
-        s.numero        = textOf(etNumero);
-        s.aptoBloque    = textOf(etAptoBloque);
-        s.indicaciones  = textOf(etIndicaciones);
+        s.municipio      = municipio;
+        s.barrioVereda   = barrio;
+        s.direccion      = direccion;
+        s.fecha          = fecha;
+        s.horaDesde      = desde;
+        s.horaHasta      = hasta;
+        s.tipoProducto   = tipoProd;
+        s.ciudadOrigen   = ciudadOri;
+        s.ciudadDestino  = ciudadDes;
+        s.formaPago      = formaPago;
+        s.valorDeclarado = valorDecl;
+        s.createdAt      = System.currentTimeMillis();
 
-        s.fecha         = textOf(etFecha);
-        s.horaDesde     = textOf(etHoraDesde);
-        s.horaHasta     = textOf(etHoraHasta);
-
-        s.tipoProducto  = textOf(etTipoProducto.getText());
-        s.ciudadOrigen  = textOf(etCiudadOrigen.getText());
-        s.ciudadDestino = textOf(etCiudadDestino.getText());
-        s.formaPago     = textOf(etFormaPago.getText());
-        s.valorDeclarado= parseCurrencyToLong(textOf(etValorDeclarado));
-
-        s.createdAt = System.currentTimeMillis();
-
-        AppDatabase db = AppDatabase.getInstance(requireContext());
-        executor.execute(() -> {
-            SolicitudDao dao = db.solicitudDao();
-            dao.insert(s);
-            requireActivity().runOnUiThread(() -> {
-                toast("Solicitud guardada localmente");
-                toast("Resumen: " + buildResumen());
+        Executors.newSingleThreadExecutor().execute(() -> {
+            AppDatabase db = AppDatabase.getInstance(requireContext());
+            db.solicitudDao().insert(s);
+            runOnUi(() -> {
+                toast("Solicitud guardada");
+                limpiar();
             });
         });
     }
 
-    // =============================================================================================
-    // Pickers
-    // =============================================================================================
-
-    private void setupPickers() {
-        View.OnClickListener dateClick = vv -> showDatePicker(etFecha);
-        etFecha.setOnClickListener(dateClick);
-        etFecha.setOnFocusChangeListener((v, has) -> { if (has) showDatePicker(etFecha); });
-
-        View.OnClickListener timeFromClick = vv -> showTimePicker(etHoraDesde);
-        etHoraDesde.setOnClickListener(timeFromClick);
-        etHoraDesde.setOnFocusChangeListener((v, has) -> { if (has) showTimePicker(etHoraDesde); });
-
-        View.OnClickListener timeToClick = vv -> showTimePicker(etHoraHasta);
-        etHoraHasta.setOnClickListener(timeToClick);
-        etHoraHasta.setOnFocusChangeListener((v, has) -> { if (has) showTimePicker(etHoraHasta); });
+    private void limpiar() {
+        clearText(etBarrioVereda, etDireccion, etFecha, etHoraDesde, etHoraHasta, etValorDeclarado);
+        if (etCiudadRecogida != null) etCiudadRecogida.setText("", false);
+        if (etTipoZona != null)       etTipoZona.setText("", false);
+        if (etTipoProducto != null)   etTipoProducto.setText("", false);
+        if (etCiudadOrigen != null)   etCiudadOrigen.setText("", false);
+        if (etCiudadDestino != null)  etCiudadDestino.setText("", false);
+        if (etFormaPago != null)      etFormaPago.setText("", false);
     }
 
-    private void showDatePicker(TextInputEditText target) {
-        final Calendar c = Calendar.getInstance();
-        int y = c.get(Calendar.YEAR);
-        int m = c.get(Calendar.MONTH);
-        int d = c.get(Calendar.DAY_OF_MONTH);
-
-        DatePickerDialog dlg = new DatePickerDialog(requireContext(),
-                (view, year, month, dayOfMonth) -> {
-                    String mm = String.format(Locale.getDefault(), "%02d", month + 1);
-                    String dd = String.format(Locale.getDefault(), "%02d", dayOfMonth);
-                    target.setText(year + "-" + mm + "-" + dd);
-                }, y, m, d);
-        dlg.show();
+    // ---------- utils ----------
+    private String textOf(@Nullable TextView tv) {
+        return (tv == null || tv.getText() == null) ? "" : tv.getText().toString().trim();
     }
-
-    private void showTimePicker(TextInputEditText target) {
-        final Calendar c = Calendar.getInstance();
-        int h = c.get(Calendar.HOUR_OF_DAY);
-        int min = c.get(Calendar.MINUTE);
-
-        TimePickerDialog dlg = new TimePickerDialog(requireContext(),
-                (view, hourOfDay, minute) -> {
-                    String hh = String.format(Locale.getDefault(), "%02d", hourOfDay);
-                    String mm = String.format(Locale.getDefault(), "%02d", minute);
-                    target.setText(hh + ":" + mm);
-                }, h, min, true);
-        dlg.show();
+    private void clearText(TextInputEditText... edits) {
+        if (edits == null) return;
+        for (TextInputEditText e : edits) if (e != null) e.setText("");
     }
-
-    // =============================================================================================
-    // Helpers UI / Validaciones
-    // =============================================================================================
-
-    private void setAdapter(AutoCompleteTextView view, int arrayRes) {
-        ArrayAdapter<CharSequence> adapter =
-                ArrayAdapter.createFromResource(requireContext(), arrayRes, android.R.layout.simple_list_item_1);
-        view.setAdapter(adapter);
-        view.setThreshold(0);
+    private Double parseDoubleSafe(String s) {
+        try { return TextUtils.isEmpty(s) ? 0d : Double.parseDouble(s); }
+        catch (Exception e) { return 0d; }
     }
-
-    private void setupDrop(AutoCompleteTextView v) {
-        v.setOnClickListener(x -> v.showDropDown());
-        v.setOnFocusChangeListener((vv, hasFocus) -> { if (hasFocus) v.showDropDown(); });
-    }
-
-    private void clearErrors() {
-        etCiudadRecogida.setError(null);
-        etDireccion.setError(null);
-        etFecha.setError(null);
-        etHoraDesde.setError(null);
-        etHoraHasta.setError(null);
-        etBarrioVereda.setError(null);
-    }
-
-    private void setDesgloseVisible(boolean visible) {
-        if (llDesgloseDireccion != null) {
-            llDesgloseDireccion.setVisibility(visible ? View.VISIBLE : View.GONE);
-        }
-        setEnabledDesglose(visible);
-        if (!visible) clearDesglose();
-    }
-
-    private void setEnabledDesglose(boolean enabled) {
-        if (etTipoVia != null) etTipoVia.setEnabled(enabled);
-        if (etVia != null) etVia.setEnabled(enabled);
-        if (etNumero != null) etNumero.setEnabled(enabled);
-        if (etAptoBloque != null) etAptoBloque.setEnabled(enabled);
-    }
-
-    private void clearDesglose() {
-        if (etTipoVia != null) etTipoVia.setText(null);
-        if (etVia != null) etVia.setText(null);
-        if (etNumero != null) etNumero.setText(null);
-        if (etAptoBloque != null) etAptoBloque.setText(null);
-    }
-
-    private void toast(String msg) {
-        Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
-    }
-
-    private boolean isEmpty(AutoCompleteTextView v) {
-        CharSequence t = v.getText();
-        return t == null || TextUtils.isEmpty(t.toString().trim());
-    }
-
-    private boolean isEmpty(TextInputEditText v) {
-        CharSequence t = v.getText();
-        return t == null || TextUtils.isEmpty(t.toString().trim());
-    }
-
-    private String textOf(TextInputEditText v) {
-        CharSequence cs = (v == null) ? null : v.getText();
-        return cs == null ? "" : cs.toString().trim();
-    }
-
-    private String textOf(CharSequence cs) {
-        return cs == null ? "" : cs.toString().trim();
-    }
-
-    private Date parseDate(String s) {
-        try {
-            SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-            df.setLenient(false);
-            return df.parse(s);
-        } catch (ParseException e) {
-            return null;
-        }
-    }
-
-    private boolean isPast(Date d) {
-        Calendar today = Calendar.getInstance();
-        zeroTime(today);
-        Calendar sel = Calendar.getInstance();
-        sel.setTime(d);
-        zeroTime(sel);
-        return sel.before(today);
-    }
-
-    private void zeroTime(Calendar cal) {
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-    }
-
-    private Integer parseHHmmToMinutes(String s) {
-        try {
-            SimpleDateFormat tf = new SimpleDateFormat("HH:mm", Locale.getDefault());
-            tf.setLenient(false);
-            Date d = tf.parse(s);
-            Calendar c = Calendar.getInstance();
-            c.setTime(d);
-            return c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE);
-        } catch (ParseException e) {
-            return null;
-        }
-    }
-
-    private long parseCurrencyToLong(String input) {
-        if (input == null) return 0L;
-        String digits = input.replaceAll("[^0-9]", "");
-        if (digits.isEmpty()) return 0L;
-        try {
-            return Long.parseLong(digits);
-        } catch (NumberFormatException e) {
-            return 0L;
-        }
-    }
-
-    private String buildResumen() {
-        String tipo   = textOf(etTipoProducto.getText());
-        String origen = textOf(etCiudadOrigen.getText());
-        String dest   = textOf(etCiudadDestino.getText());
-        String fecha  = textOf(etFecha);
-        String desde  = textOf(etHoraDesde);
-        String hasta  = textOf(etHoraHasta);
-        return tipo + " | " + origen + "→" + dest + " | " + fecha + " " + desde + "-" + hasta;
-    }
+    private void runOnUi(Runnable r) { if (!isAdded()) return; requireActivity().runOnUiThread(r); }
+    private void toast(String t) { if (!isAdded()) return; Toast.makeText(requireContext(), t, Toast.LENGTH_SHORT).show(); }
 }
