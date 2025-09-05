@@ -19,8 +19,8 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Recolector;
-import com.hfad.encomiendas.data.AsignacionDao.ZonaAsignada;   // <-- IMPORT CORRECTO (clase anidada)
-import com.hfad.encomiendas.data.ZonaPendiente;                // <-- si tu ZonaPendiente es top-level; si es anidada en SolicitudDao, cámbialo
+import com.hfad.encomiendas.data.AsignacionDao;
+import com.hfad.encomiendas.data.SolicitudDao;
 import com.hfad.encomiendas.ui.adapters.ZonaStatAdapter;
 
 import java.text.SimpleDateFormat;
@@ -32,14 +32,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executors;
 
-public class                                                                                   AsignadorFragment extends Fragment {
+public class AsignadorFragment extends Fragment {
 
     private TextInputEditText etFecha;
     private TextView tvResumen;
     private RecyclerView rvZonas;
     private ZonaStatAdapter zonasAdapter;
-
-    public AsignadorFragment() { }
+    public AsignadorFragment() {}
 
     @Nullable
     @Override
@@ -58,7 +57,6 @@ public class                                                                    
         rvZonas.setLayoutManager(new LinearLayoutManager(requireContext()));
         zonasAdapter = new ZonaStatAdapter(new ZonaStatAdapter.Listener() {
             @Override public void onItemClick(ZonaStatAdapter.ZonaItem item) {
-                // Tap en tarjeta -> ver detalle de esa zona
                 Bundle b = new Bundle();
                 b.putString("fecha", textOf(etFecha));
                 b.putString("zona", item.zona);
@@ -74,46 +72,26 @@ public class                                                                    
         String hoy = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
         etFecha.setText(hoy);
 
-        // Botón demo (si existe en el layout)
         MaterialButton btnCargarDemo = view.findViewById(R.id.btnCargarDemo);
-        if (btnCargarDemo != null) {
-            btnCargarDemo.setOnClickListener(v -> cargarDemoParaFecha(textOf(etFecha)));
-        }
-
-        // Ocultar botón legacy "btnGenerarRutas" si estuviera en algún layout anterior,
-        // sin referenciar R.id directamente (evita error si no existe).
-        int legacyId = getResources().getIdentifier("btnGenerarRutas", "id", requireContext().getPackageName());
-        if (legacyId != 0) {
-            View legacy = view.findViewById(legacyId);
-            if (legacy != null) legacy.setVisibility(View.GONE);
-        }
+        if (btnCargarDemo != null) btnCargarDemo.setOnClickListener(v -> cargarDemoParaFecha(textOf(etFecha)));
 
         refrescarResumenYMapa(textOf(etFecha));
     }
 
     private void asignarZona(String zona) {
         final String fecha = textOf(etFecha);
-        if (TextUtils.isEmpty(fecha) || TextUtils.isEmpty(zona)) {
-            toast("Fecha/zona inválida"); return;
-        }
+        if (TextUtils.isEmpty(fecha) || TextUtils.isEmpty(zona)) { toast("Fecha/zona inválida"); return; }
         Executors.newSingleThreadExecutor().execute(() -> {
-            com.hfad.encomiendas.core.AsignadorService svc =
-                    new com.hfad.encomiendas.core.AsignadorService(requireContext());
+            com.hfad.encomiendas.core.AsignadorService svc = new com.hfad.encomiendas.core.AsignadorService(requireContext());
             int n = svc.generarRutasParaFechaZona(fecha, zona);
-            runOnUi(() -> {
-                toast("Asignadas " + n + " en " + zona);
-                refrescarResumenYMapa(fecha);
-            });
+            runOnUi(() -> { toast("Asignadas " + n + " en " + zona); refrescarResumenYMapa(fecha); });
         });
     }
 
     private void cargarDemoParaFecha(String fecha) {
         Executors.newSingleThreadExecutor().execute(() -> {
             com.hfad.encomiendas.core.DemoSeeder.seed(requireContext());
-            runOnUi(() -> {
-                toast("Demo cargada para hoy (si no existía)");
-                refrescarResumenYMapa(fecha);
-            });
+            runOnUi(() -> { toast("Demo cargada"); refrescarResumenYMapa(fecha); });
         });
     }
 
@@ -138,19 +116,19 @@ public class                                                                    
             }
             String txtResumen = sb.toString();
 
-            // OJO: aquí usamos la clase anidada del DAO para que coincidan los tipos
-            List<ZonaAsignada> listA = db.asignacionDao().countAsignadasPorZona(fecha);
-            List<ZonaPendiente> listP = db.solicitudDao().countPendientesPorZona(fecha);
+            // construir mapa zona -> item (asignadas/pendientes)
+            List<AsignacionDao.ZonaAsignada> listA = db.asignacionDao().countAsignadasPorZona(fecha);
+            List<SolicitudDao.ZonaPendiente> listP = db.solicitudDao().countPendientesPorZona(fecha);
 
             Map<String, ZonaStatAdapter.ZonaItem> map = new LinkedHashMap<>();
             if (listA != null) {
-                for (ZonaAsignada za : listA) {
+                for (AsignacionDao.ZonaAsignada za : listA) {
                     String z = norm(za.zona);
                     map.put(z, new ZonaStatAdapter.ZonaItem(z, za.asignadas, 0));
                 }
             }
             if (listP != null) {
-                for (ZonaPendiente zp : listP) {
+                for (SolicitudDao.ZonaPendiente zp : listP) {
                     String z = norm(zp.zona);
                     ZonaStatAdapter.ZonaItem it = map.get(z);
                     if (it == null) it = new ZonaStatAdapter.ZonaItem(z, 0, zp.pendientes);
@@ -159,7 +137,23 @@ public class                                                                    
                 }
             }
 
+            // previews: 3 pendientes por zona
             List<ZonaStatAdapter.ZonaItem> items = new ArrayList<>(map.values());
+            for (ZonaStatAdapter.ZonaItem it : items) {
+                List<SolicitudDao.PendienteDetalle> prev =
+                        db.solicitudDao().listPendienteDetalleByZonaAndFecha(it.zona, fecha, 3);
+                StringBuilder pv = new StringBuilder();
+                for (SolicitudDao.PendienteDetalle p : prev) {
+                    pv.append("• ")
+                            .append(nn(p.tipoProducto)).append(" ").append(nn(p.tamanoPaquete))
+                            .append("  ").append(nn(p.horaDesde)).append("–").append(nn(p.horaHasta))
+                            .append(" — ").append(nn(p.direccion))
+                            .append("\n");
+                }
+                it.preview = pv.toString().trim();
+            }
+
+            // ordenar por mayor pendiente primero
             items.sort((o1, o2) -> Integer.compare(o2.pendientes, o1.pendientes));
 
             runOnUi(() -> {
@@ -169,7 +163,6 @@ public class                                                                    
         });
     }
 
-    // utils
     private String textOf(TextInputEditText et) { return et.getText() == null ? "" : et.getText().toString().trim(); }
     private void runOnUi(Runnable r) { if (isAdded()) requireActivity().runOnUiThread(r); }
     private void toast(String msg) { if (isAdded()) Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show(); }

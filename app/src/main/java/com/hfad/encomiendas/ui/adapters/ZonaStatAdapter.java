@@ -17,11 +17,11 @@ import java.util.Locale;
 
 public class ZonaStatAdapter extends RecyclerView.Adapter<ZonaStatAdapter.VH> {
 
-    // Item de zona para el tablero
     public static class ZonaItem {
         public String zona;
         public int asignadas;
         public int pendientes;
+        public String preview; // NUEVO: texto con 2-3 líneas
 
         public ZonaItem(String zona, int asignadas, int pendientes) {
             this.zona = (zona == null || zona.trim().isEmpty()) ? "(sin zona)" : zona.trim();
@@ -31,18 +31,12 @@ public class ZonaStatAdapter extends RecyclerView.Adapter<ZonaStatAdapter.VH> {
     }
 
     public interface Listener {
-        void onItemClick(ZonaItem item);     // tap en la tarjeta -> ver detalle
-        void onAsignarZona(ZonaItem item);   // pulsar botón Asignar zona
+        void onItemClick(ZonaItem item);
+        void onAsignarZona(ZonaItem item);
     }
 
-    private final List<VHItem> data = new ArrayList<>();
+    private final List<ZonaItem> data = new ArrayList<>();
     private final Listener listener;
-
-    // envoltorio para poder modificar/ocultar el botón sin perder valores
-    private static class VHItem {
-        ZonaItem item;
-        VHItem(ZonaItem i) { this.item = i; }
-    }
 
     public ZonaStatAdapter(Listener listener) {
         this.listener = listener;
@@ -50,9 +44,7 @@ public class ZonaStatAdapter extends RecyclerView.Adapter<ZonaStatAdapter.VH> {
 
     public void setData(List<ZonaItem> items) {
         data.clear();
-        if (items != null) {
-            for (ZonaItem it : items) data.add(new VHItem(it));
-        }
+        if (items != null) data.addAll(items);
         notifyDataSetChanged();
     }
 
@@ -66,47 +58,36 @@ public class ZonaStatAdapter extends RecyclerView.Adapter<ZonaStatAdapter.VH> {
 
     @Override
     public void onBindViewHolder(@NonNull VH h, int position) {
-        VHItem w = data.get(position);
-        ZonaItem z = w.item;
+        ZonaItem z = data.get(position);
 
         h.tvZona.setText(z.zona);
         h.tvAsignadas.setText(String.format(Locale.getDefault(), "Asignadas: %d", z.asignadas));
         h.tvPendientes.setText(String.format(Locale.getDefault(), "Pendientes: %d", z.pendientes));
+        h.tvPreview.setText(z.preview == null ? "" : z.preview);
 
-        // Card clickeable para ir al detalle (ya NO hay botón "Ver detalle")
-        h.itemView.setOnClickListener(v -> {
-            if (listener != null) listener.onItemClick(z);
-        });
+        h.itemView.setOnClickListener(v -> { if (listener != null) listener.onItemClick(z); });
 
-        // Botón "Asignar zona": visible solo si hay pendientes
         if (z.pendientes > 0) {
             h.btnAsignar.setVisibility(View.VISIBLE);
             h.btnAsignar.setEnabled(true);
+            h.btnAsignar.setOnClickListener(v -> { if (listener != null) listener.onAsignarZona(z); });
         } else {
             h.btnAsignar.setVisibility(View.GONE);
             h.btnAsignar.setEnabled(false);
         }
-
-        h.btnAsignar.setOnClickListener(v -> {
-            if (listener != null) listener.onAsignarZona(z);
-        });
-
-        // (Estética) leve tinte según carga pendiente
-        int alpha = Math.min(100, 20 + z.pendientes * 10);
-        h.itemView.setBackgroundColor((alpha << 24)); // sólo alfa
     }
 
-    @Override
-    public int getItemCount() { return data.size(); }
+    @Override public int getItemCount() { return data.size(); }
 
     static class VH extends RecyclerView.ViewHolder {
-        TextView tvZona, tvAsignadas, tvPendientes;
+        TextView tvZona, tvAsignadas, tvPendientes, tvPreview;
         MaterialButton btnAsignar;
         VH(@NonNull View v) {
             super(v);
             tvZona       = v.findViewById(R.id.tvZona);
             tvAsignadas  = v.findViewById(R.id.tvAsignadas);
             tvPendientes = v.findViewById(R.id.tvPendientes);
+            tvPreview    = v.findViewById(R.id.tvPreview);     // NUEVO
             btnAsignar   = v.findViewById(R.id.btnAsignarZona);
         }
     }

@@ -10,57 +10,64 @@ import java.util.List;
 @Dao
 public interface SolicitudDao {
 
-    // Insert / UPSERT simple
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     long insert(Solicitud s);
 
-    // Listado por fecha (para el asignador)
-    @Query("SELECT * FROM solicitudes WHERE fecha = :fecha ORDER BY createdAt ASC")
+    @Query("SELECT * FROM solicitudes WHERE fecha = :fecha ORDER BY createdAt DESC")
     List<Solicitud> listByFecha(String fecha);
 
-    // # pendientes (no asignadas) en una fecha
-    @Query(
-            "SELECT COUNT(*) " +
-                    "FROM solicitudes s " +
-                    "WHERE s.fecha = :fecha " +
-                    "AND NOT EXISTS ( " +
-                    "   SELECT 1 FROM asignaciones a " +
-                    "   WHERE a.solicitudId = s.id AND a.fecha = :fecha" +
-                    ")"
-    )
+    // ---- Pendientes (no tienen asignación ese día) ----
+    @Query("SELECT COUNT(*) FROM solicitudes s " +
+            "WHERE s.fecha = :fecha AND s.id NOT IN (" +
+            "  SELECT a.solicitudId FROM asignaciones a WHERE a.fecha = :fecha" +
+            ")")
     int countUnassignedByFecha(String fecha);
 
-    // Pendientes filtradas por zona (para asignar por zona)
-    @Query(
-            "SELECT * FROM solicitudes s " +
-                    "WHERE s.fecha = :fecha " +
-                    "AND (:zona = '' OR s.barrioVereda = :zona) " +
-                    "AND NOT EXISTS ( " +
-                    "   SELECT 1 FROM asignaciones a " +
-                    "   WHERE a.solicitudId = s.id AND a.fecha = :fecha" +
-                    ") " +
-                    "ORDER BY s.createdAt ASC"
-    )
+    @Query("SELECT * FROM solicitudes s " +
+            "WHERE s.fecha = :fecha AND s.id NOT IN (" +
+            "  SELECT a.solicitudId FROM asignaciones a WHERE a.fecha = :fecha" +
+            ") AND (:zona IS NULL OR :zona = '' OR s.barrioVereda = :zona)")
     List<Solicitud> listUnassignedByFechaZona(String fecha, String zona);
 
-    // Conteo de pendientes agrupado por zona para el tablero
-    @Query(
-            "SELECT s.barrioVereda AS zona, COUNT(s.id) AS pendientes " +
-                    "FROM solicitudes s " +
-                    "LEFT JOIN asignaciones a " +
-                    "  ON a.solicitudId = s.id AND a.fecha = :fecha " +
-                    "WHERE s.fecha = :fecha AND a.id IS NULL " +
-                    "GROUP BY s.barrioVereda " +
-                    "ORDER BY pendientes DESC"
-    )
+    // Conteo de pendientes por zona (para tablero)
+    class ZonaPendiente {
+        public String zona;
+        public int pendientes;
+    }
+
+    @Query("SELECT s.barrioVereda AS zona, COUNT(s.id) AS pendientes " +
+            "FROM solicitudes s " +
+            "WHERE s.fecha = :fecha AND s.id NOT IN (" +
+            "  SELECT a.solicitudId FROM asignaciones a WHERE a.fecha = :fecha" +
+            ") GROUP BY s.barrioVereda ORDER BY pendientes DESC")
     List<ZonaPendiente> countPendientesPorZona(String fecha);
 
+    // Detalle compacto de pendientes por zona (para previews en tarjetas)
+    class PendienteDetalle {
+        public int id;
+        public String tipoProducto;
+        public String tamanoPaquete;
+        public String direccion;
+        public String horaDesde;
+        public String horaHasta;
+        public String zona;
+    }
 
-    @Query(
-            "SELECT * FROM solicitudes s " +
-                    "WHERE s.fecha = :fecha " +
-                    "AND NOT EXISTS (SELECT 1 FROM asignaciones a WHERE a.solicitudId = s.id AND a.fecha = :fecha) " +
-                    "ORDER BY s.createdAt ASC"
-    )
-    List<Solicitud> listUnassignedByFecha(String fecha);
+    @Query("SELECT s.id AS id, s.tipoProducto AS tipoProducto, s.tamanoPaquete AS tamanoPaquete, " +
+            "s.direccion AS direccion, s.horaDesde AS horaDesde, s.horaHasta AS horaHasta, " +
+            "s.barrioVereda AS zona " +
+            "FROM solicitudes s " +
+            "WHERE s.fecha = :fecha AND s.barrioVereda = :zona AND " +
+            "      s.id NOT IN (SELECT a.solicitudId FROM asignaciones a WHERE a.fecha = :fecha) " +
+            "ORDER BY s.horaDesde LIMIT :limit")
+    List<PendienteDetalle> listPendienteDetalleByZonaAndFecha(String zona, String fecha, int limit);
+
+    @Query("SELECT s.id AS id, s.tipoProducto AS tipoProducto, s.tamanoPaquete AS tamanoPaquete, " +
+            "s.direccion AS direccion, s.horaDesde AS horaDesde, s.horaHasta AS horaHasta, " +
+            "s.barrioVereda AS zona " +
+            "FROM solicitudes s " +
+            "WHERE s.fecha = :fecha AND s.barrioVereda = :zona AND " +
+            "      s.id NOT IN (SELECT a.solicitudId FROM asignaciones a WHERE a.fecha = :fecha) " +
+            "ORDER BY s.horaDesde")
+    List<PendienteDetalle> listPendienteDetalleFullByZonaAndFecha(String zona, String fecha);
 }

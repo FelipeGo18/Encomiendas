@@ -3,12 +3,11 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    app:cardUseCompatPadding="true"
-    app:cardCornerRadius="12dp">
+    android:layout_marginBottom="8dp"
+    app:cardCornerRadius="16dp"
+    app:strokeWidth="1dp">
 
     <LinearLayout
-        android:id="@+id/root"
         android:orientation="vertical"
         android:padding="12dp"
         android:layout_width="match_parent"
@@ -19,27 +18,32 @@
             android:textStyle="bold"
             android:textSize="16sp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Zona" />
+            android:layout_height="wrap_content"/>
 
         <TextView
             android:id="@+id/tvAsignadas"
             android:layout_marginTop="4dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Asignadas: 0" />
+            android:layout_height="wrap_content"/>
 
         <TextView
             android:id="@+id/tvPendientes"
             android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <!-- Preview de pedidos pendientes -->
+        <TextView
+            android:id="@+id/tvPreview"
+            android:layout_marginTop="6dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Pendientes: 0" />
+            android:textColorHint="#AAAAAA"/>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAsignarZona"
             android:text="Asignar zona"
             android:layout_marginTop="8dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"/>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
