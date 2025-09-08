@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:overScrollMode="never"
     android:fillViewport="true">
 
     <LinearLayout
@@ -11,88 +12,194 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <!-- Encabezado -->
-        <TextView
-            android:id="@+id/tvHeader"
-            android:text="Asignación #—"
-            android:textStyle="bold"
-            android:textSize="16sp"
-            android:textColor="@android:color/white"
+        <!-- Encabezado (solo orden/estado) -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/tvTitulo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textStyle="bold"
+                    android:text="—"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"/>
+
+                <TextView
+                    android:id="@+id/tvSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Orden: —"
+                    android:layout_marginTop="4dp"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Foto -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Foto de evidencia"
+                    android:textStyle="bold"/>
+
+                <ImageView
+                    android:id="@+id/ivFoto"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:layout_marginTop="8dp"
+                    android:scaleType="centerCrop"
+                    android:background="#22000000"
+                    android:clickable="true"
+                    android:focusable="true"/>
+
+                <!-- (1) Sin foto: botón único -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnTomarFoto"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Tomar foto"
+                    android:layout_marginTop="12dp"/>
+
+                <!-- (2) Foto pendiente: Editar + Confirmar -->
+                <LinearLayout
+                    android:id="@+id/llEditarConfirmar"
+                    android:visibility="gone"
+                    android:orientation="horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnEditarFoto"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Editar"/>
+
+                    <Space
+                        android:layout_width="12dp"
+                        android:layout_height="1dp"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnConfirmarFoto"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Confirmar"/>
+                </LinearLayout>
+
+                <!-- (3) Foto confirmada: solo Editar -->
+                <LinearLayout
+                    android:id="@+id/llSoloEditar"
+                    android:visibility="gone"
+                    android:orientation="horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSoloEditar"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Editar"/>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Firma -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Firma del receptor"
+                    android:textStyle="bold"/>
+
+                <!-- Vista PREVIEW (se muestra cuando hay firma guardada) -->
+                <ImageView
+                    android:id="@+id/ivFirmaPreview"
+                    android:layout_width="match_parent"
+                    android:layout_height="220dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@android:color/white"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"/>
+
+                <!-- Vista de DIBUJO (solo cuando no hay firma o guía no activa) -->
+                <com.hfad.encomiendas.ui.widgets.SignatureView
+                    android:id="@+id/signView"
+                    android:layout_width="match_parent"
+                    android:layout_height="220dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@android:color/white"/>
+
+                <LinearLayout
+                    android:orientation="horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnLimpiar"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Limpiar"/>
+
+                    <Space
+                        android:layout_width="12dp"
+                        android:layout_height="1dp"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGuardarFirma"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Guardar firma"/>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <TextView
             android:id="@+id/tvEstado"
-            android:text="Estado: —"
-            android:layout_marginTop="2dp"
-            android:textColor="@android:color/white"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <!-- Resumen del pedido (DETALLE) -->
-        <TextView
-            android:id="@+id/tvPedido"
-            android:text="—"
-            android:layout_marginTop="6dp"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="13sp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <!-- Foto evidencia -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTomarFoto"
-            android:text="Tomar foto evidencia"
+            android:layout_height="wrap_content"
+            android:text=""
             android:layout_marginTop="12dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <ImageView
-            android:id="@+id/ivFoto"
-            android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:layout_marginTop="8dp"
-            android:scaleType="centerCrop"
-            android:background="#222" />
-
-        <!-- Firma -->
-        <TextView
-            android:text="Firma del remitente/guardia"
-            android:layout_marginTop="16dp"
-            android:textColor="@android:color/white"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <com.hfad.encomiendas.ui.widgets.SignatureView
-            android:id="@+id/signatureView"
-            android:layout_width="match_parent"
-            android:layout_height="220dp"
-            android:layout_marginTop="8dp"
-            android:background="#000000" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnGuardarFirma"
-            android:text="Guardar firma"
-            android:layout_marginTop="8dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnLimpiarFirma"
-            android:text="Limpiar firma"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_marginTop="6dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <!-- Cierre -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnActivarGuia"
-            android:text="Activar guía"
-            android:layout_marginTop="16dp"
-            android:enabled="false"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
+            android:gravity="center"/>
     </LinearLayout>
-</ScrollView>
+</androidx.core.widget.NestedScrollView>

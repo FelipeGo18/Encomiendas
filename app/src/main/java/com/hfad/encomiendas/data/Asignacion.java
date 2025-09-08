@@ -15,8 +15,7 @@ public class Asignacion {
     public String estado;            // ASIGNADA, RECOLECTADA, etc.
     public Integer ordenRuta;        // 1,2,3...
 
-    // OTP es opcional, pero lo mantenemos por compatibilidad
-    public String otp;
+
 
     // Evidencias
     public String evidenciaFotoUri;  // content://... (o file://...)

@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/swRefresh"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <!-- Cabecera -->
+            <TextView
+                android:id="@+id/tvHola"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="¡Hola!"
+                android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+                android:layout_marginBottom="8dp"/>
+
+            <TextView
+                android:id="@+id/tvResumen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Aquí tienes un resumen de tus recolecciones."
+                android:layout_marginBottom="16dp"/>
+
+            <!-- Tarjetas de conteo -->
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:weightSum="3">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    app:cardCornerRadius="16dp"
+                    app:strokeWidth="1dp">
+                    <LinearLayout
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Pendientes"/>
+                        <TextView
+                            android:id="@+id/tvCountPendientes"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    app:cardCornerRadius="16dp"
+                    app:strokeWidth="1dp">
+                    <LinearLayout
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Asignadas"/>
+                        <TextView
+                            android:id="@+id/tvCountAsignadas"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    app:cardCornerRadius="16dp"
+                    app:strokeWidth="1dp">
+                    <LinearLayout
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Recolectadas"/>
+                        <TextView
+                            android:id="@+id/tvCountRecolectadas"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
+
+            <!-- Botón crear -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCrear"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Crear recolección"
+                android:layout_marginTop="16dp"
+                style="@style/Widget.Material3.Button.TonalButton"/>
+
+            <!-- Título lista -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Últimas recolecciones"
+                android:layout_marginTop="16dp"
+                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"/>
+
+            <!-- Lista -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvSolicitudes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:overScrollMode="never"
+                android:layout_marginTop="8dp"/>
+
+            <!-- Vacío -->
+            <TextView
+                android:id="@+id/tvEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Aún no tienes recolecciones."
+                android:gravity="center"
+                android:visibility="gone"
+                android:layout_marginTop="24dp"/>
+
+        </LinearLayout>
+    </ScrollView>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

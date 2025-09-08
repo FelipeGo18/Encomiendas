@@ -88,6 +88,7 @@ public class RegistroRemitenteFragment extends Fragment {
 
             User u = new User();
             u.email = email;
+            u.telefono = "";
             u.passwordHash = hash;
             u.rol = "REMITENTE"; // rol por defecto al registrarse aquí
             u.createdAt = System.currentTimeMillis();

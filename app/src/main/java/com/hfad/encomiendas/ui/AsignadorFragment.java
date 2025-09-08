@@ -38,10 +38,10 @@ public class AsignadorFragment extends Fragment {
     private TextView tvResumen;
     private RecyclerView rvZonas;
     private ZonaStatAdapter zonasAdapter;
+
     public AsignadorFragment() {}
 
-    @Nullable
-    @Override
+    @Nullable @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_asignador, container, false);
     }
@@ -63,9 +63,7 @@ public class AsignadorFragment extends Fragment {
                 androidx.navigation.Navigation.findNavController(requireView())
                         .navigate(R.id.zonaDetalleFragment, b);
             }
-            @Override public void onAsignarZona(ZonaStatAdapter.ZonaItem item) {
-                asignarZona(item.zona);
-            }
+            @Override public void onAsignarZona(ZonaStatAdapter.ZonaItem item) { asignarZona(item.zona); }
         });
         rvZonas.setAdapter(zonasAdapter);
 
@@ -116,7 +114,7 @@ public class AsignadorFragment extends Fragment {
             }
             String txtResumen = sb.toString();
 
-            // construir mapa zona -> item (asignadas/pendientes)
+            // construir mapa zona -> item (asignadas / pendientes)
             List<AsignacionDao.ZonaAsignada> listA = db.asignacionDao().countAsignadasPorZona(fecha);
             List<SolicitudDao.ZonaPendiente> listP = db.solicitudDao().countPendientesPorZona(fecha);
 

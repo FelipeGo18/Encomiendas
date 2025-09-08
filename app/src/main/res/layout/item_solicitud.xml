@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    app:cardCornerRadius="16dp"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/tvTitulo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="EC-000000  •  PENDIENTE"
+            android:textAppearance="@style/TextAppearance.Material3.TitleSmall"/>
+
+        <TextView
+            android:id="@+id/tvSub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Hoy, 9:00 AM - 11:00 AM"
+            android:layout_marginTop="2dp"/>
+
+        <TextView
+            android:id="@+id/tvDir"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cll 1 # 1, Bogotá"
+            android:layout_marginTop="6dp"/>
+
+        <TextView
+            android:id="@+id/tvDestino"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Destino: —"
+            android:layout_marginTop="2dp"/>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

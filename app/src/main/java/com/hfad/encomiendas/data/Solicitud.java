@@ -2,29 +2,44 @@ package com.hfad.encomiendas.data;
 
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
+import androidx.room.ForeignKey;
+import androidx.room.Index;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
-@Entity(tableName = "solicitudes")
+@Entity(
+        foreignKeys = {
+                @ForeignKey(entity = User.class, parentColumns = "id", childColumns = "remitenteId"),
+                @ForeignKey(entity = Recolector.class, parentColumns = "id", childColumns = "recolectorId")
+        },
+        indices = {@Index("remitenteId"), @Index("recolectorId")}
+)
 public class Solicitud {
-    @PrimaryKey(autoGenerate = true)
-    public int id;
+    @PrimaryKey(autoGenerate = true) public long id;
 
-    public String tipoProducto;
-    public String ciudadOrigen;
-    public String ciudadDestino;
-    public String formaPago;
-    public Double valorDeclarado;
+    public long remitenteId;
+    @Nullable public Long recolectorId; // null hasta asignar
 
-    // NUEVO
-    public String tamanoPaquete; // SOBRE | PEQUENO | MEDIANO | GRANDE | VOLUMINOSO
+    @NonNull public String direccion;
+    /** fecha/hora de creación (no confundir con ventana) */
+    public long fechaEpochMillis;
 
-    public String municipio;
-    public String direccion;
-    public String barrioVereda;
+    /** NUEVO: ventana de atención */
+    public long ventanaInicioMillis;  // p.ej. 2025-09-05 14:00
+    public long ventanaFinMillis;     // p.ej. 2025-09-05 16:00
 
-    public String fecha;
-    public String horaDesde;
-    public String horaHasta;
+    /** NUEVO: detalles logísticos */
+    @NonNull public String tipoPaquete;     // usar arrays.xml
+    @Nullable public Double pesoKg;         // opcional
+    @Nullable public Double volumenM3;      // opcional
 
-    public long createdAt;
-    public Long updatedAt;
+    /** opcional: para proximidad/rutas futuras */
+    @Nullable public Double lat;
+    @Nullable public Double lon;
+
+    /** NUEVO: identificador de la guía/tracking */
+    @NonNull public String guia;            // "EC-2025-000123"
+
+    @NonNull public String estado;          // "PENDIENTE","ASIGNADA","RECOGIDA"
+    @Nullable public String notas;
 }

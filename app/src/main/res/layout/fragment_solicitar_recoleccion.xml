@@ -31,23 +31,36 @@
                     android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
                     android:layout_marginBottom="8dp" />
 
-                <!-- Municipio (Dropdown) -->
+                <!-- Autocomplete de Google (ORIGEN) -->
+                <FrameLayout
+                    android:id="@+id/flPlacesOrigen"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/tvDireccionOrigen"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="—"
+                    android:textColor="@android:color/white"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="4dp" />
+
+                <!-- Municipio autollenado -->
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Municipio de recogida"
-                    app:endIconMode="dropdown_menu"
+                    android:hint="Municipio (auto)"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/etCiudadRecogida"
                         android:inputType="none"
-                        android:entries="@array/ciudades_co"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <!-- Tipo de zona (urbana/rural) -->
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Tipo de zona"
+                    android:hint="Tipo de zona (auto)"
                     app:endIconMode="dropdown_menu"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -61,27 +74,16 @@
 
                 <!-- Barrio / Vereda -->
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Barrio / Vereda / Corregimiento"
+                    android:hint="Barrio / Vereda"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
-                    <com.google.android.material.textfield.TextInputEditText
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/etBarrioVereda"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- Dirección principal -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Dirección (línea principal)"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etDireccion"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- Toggle para mostrar el desglose -->
+                <!-- Desglose opcional -->
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/swDesglosar"
                     android:layout_width="wrap_content"
@@ -89,7 +91,6 @@
                     android:text="Desglosar dirección (opcional)"
                     android:layout_marginTop="8dp" />
 
-                <!-- Contenedor del desglose (se oculta por defecto) -->
                 <LinearLayout
                     android:id="@+id/llDesgloseDireccion"
                     android:orientation="vertical"
@@ -138,22 +139,59 @@
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
 
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 2) DIRECCIÓN DE DESTINO -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Dirección de destino"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                    android:layout_marginBottom="8dp" />
+
+                <FrameLayout
+                    android:id="@+id/flPlacesDestino"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/tvDireccionDestino"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="—"
+                    android:textColor="@android:color/white"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="4dp" />
+
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Indicaciones para el mensajero"
+                    android:hint="Ciudad destino (auto)"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etIndicaciones"
-                        android:inputType="textMultiLine"
-                        android:minLines="2"
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/etCiudadDestino"
+                        android:inputType="none"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"/>
+                        android:layout_height="wrap_content" />
                 </com.google.android.material.textfield.TextInputLayout>
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 2) VENTANA DE TIEMPO -->
+        <!-- 3) VENTANA DE TIEMPO (12h) -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -175,8 +213,7 @@
                     android:layout_marginBottom="8dp" />
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Fecha de recogida"
-                    app:placeholderText="YYYY-MM-DD"
+                    android:hint="Fecha de recogida (YYYY-MM-DD)"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
                     <com.google.android.material.textfield.TextInputEditText
@@ -188,8 +225,7 @@
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Hora desde"
-                    app:placeholderText="HH:MM"
+                    android:hint="Hora desde (ej. 9:00 AM)"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
                     <com.google.android.material.textfield.TextInputEditText
@@ -201,8 +237,7 @@
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Hora hasta"
-                    app:placeholderText="HH:MM"
+                    android:hint="Hora hasta (ej. 5:30 PM)"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
                     <com.google.android.material.textfield.TextInputEditText
@@ -216,7 +251,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 3) DATOS DEL ENVÍO -->
+        <!-- 4) DATOS DEL ENVÍO -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -238,12 +273,13 @@
                     android:layout_marginBottom="8dp" />
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Tipo de producto"
+                    android:hint="Tamaño del paquete"
                     app:endIconMode="dropdown_menu"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp">
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                        android:id="@+id/etTipoProducto"
+                        android:id="@+id/etTamanoPaquete"
                         android:inputType="none"
                         android:entries="@array/tipos_producto"
                         android:layout_width="match_parent"
@@ -251,34 +287,21 @@
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Ciudad origen"
-                    app:endIconMode="dropdown_menu"
+                    android:hint="Indicaciones para el mensajero"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
-                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                        android:id="@+id/etCiudadOrigen"
-                        android:inputType="none"
-                        android:entries="@array/ciudades_co"
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etIndicaciones"
+                        android:inputType="textMultiLine"
+                        android:minLines="2"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
+                        android:layout_height="wrap_content"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:hint="Ciudad destino"
-                    app:endIconMode="dropdown_menu"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                        android:id="@+id/etCiudadDestino"
-                        android:inputType="none"
-                        android:entries="@array/ciudades_co"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-                </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 4) PAGO Y VALOR DECLARADO -->
+        <!-- 5) PAGO Y VALOR DECLARADO -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -323,6 +346,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
                 </com.google.android.material.textfield.TextInputLayout>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

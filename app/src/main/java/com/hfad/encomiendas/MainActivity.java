@@ -9,6 +9,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.navigation.NavController;
 import androidx.navigation.NavOptions;
 import androidx.navigation.fragment.NavHostFragment;
+import androidx.navigation.NavInflater;
+import androidx.navigation.NavGraph;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.hfad.encomiendas.core.PasswordUtils;
@@ -28,28 +30,38 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main); // contiene topAppBar + nav_host_fragment
+        setContentView(R.layout.activity_main);
 
-        // Toolbar como ActionBar
         MaterialToolbar toolbar = findViewById(R.id.topAppBar);
         setSupportActionBar(toolbar);
 
-        // Navigation Host
         NavHostFragment navHost = (NavHostFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.nav_host_fragment);
         if (navHost == null) {
-            throw new IllegalStateException("El layout activity_main debe incluir un FragmentContainerView con id @id/nav_host_fragment");
+            throw new IllegalStateException("Falta @id/nav_host_fragment en activity_main");
         }
         navController = navHost.getNavController();
+        NavInflater inflater = navController.getNavInflater();
+        NavGraph graph = inflater.inflate(R.navigation.nav_graph);
 
-        // Seed de datos demo (usuarios con rol y recolectores + solicitudes/asignaciones)
+        // SIEMPRE arrancamos en Login
+        graph.setStartDestination(R.id.loginFragment);
+        navController.setGraph(graph);
+
+        // Si ya hay sesión abierta → ruteo inmediato por rol
+        SessionManager sm = new SessionManager(this);
+        if (sm.isLoggedIn()) {
+            navigateByRole(sm.getRole());
+            routedAtStart = true;
+        }
+
         seedDemoData();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Si ya hay sesión, enrutar por rol y limpiar login del back stack
+        // Fallback por si vuelve y aún no estaba ruteado
         if (!routedAtStart) {
             SessionManager sm = new SessionManager(this);
             if (sm.isLoggedIn()) {
@@ -59,7 +71,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ---------- AppBar Menu ----------
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
@@ -76,33 +87,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void doLogout() {
-        // 1) limpiar sesión
         new SessionManager(this).logout();
         routedAtStart = false;
-
-        // 2) regresar a Login y limpiar la pila
         try {
             NavOptions opts = new NavOptions.Builder()
                     .setPopUpTo(navController.getGraph().getStartDestinationId(), true)
                     .build();
             navController.navigate(R.id.loginFragment, null, opts);
         } catch (Exception e) {
-            Log.e(TAG, "Fallo navegando a login tras logout. Reset del grafo.", e);
+            Log.e(TAG, "Reset nav tras logout", e);
             navController.setGraph(R.navigation.nav_graph);
         }
     }
-    // ----------------------------------
 
     private void navigateByRole(String roleRaw) {
-        String role = (roleRaw == null || roleRaw.isEmpty()) ? "REMITENTE" : roleRaw.toUpperCase();
+        String role = (roleRaw == null ? "" : roleRaw.trim().toUpperCase());
         int destId;
         switch (role) {
+            case "OPERADOR":
+            case "OPERADOR_HUB":
+                destId = R.id.hubDashboardFragment; break;
+            case "REPARTIDOR":
+                // pon aquí tu fragment de repartidor cuando lo tengas
+                destId = R.id.repartidorDashboardFragment; break;
             case "ASIGNADOR":
                 destId = R.id.asignadorFragment; break;
             case "RECOLECTOR":
                 destId = R.id.misAsignacionesFragment; break;
             default: // REMITENTE
-                destId = R.id.solicitarRecoleccionFragment; break;
+                destId = R.id.homeDashboardFragment; break;
         }
         try {
             NavOptions opts = new NavOptions.Builder()
@@ -110,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
                     .build();
             navController.navigate(destId, null, opts);
         } catch (Exception e) {
-            Log.e(TAG, "Error navegando por rol: " + role, e);
+            Log.e(TAG, "navigateByRole error (" + role + ")", e);
         }
     }
 
@@ -119,69 +132,51 @@ public class MainActivity extends AppCompatActivity {
             try {
                 AppDatabase db = AppDatabase.getInstance(getApplicationContext());
 
-                // Recolectores base
                 RecolectorDao rdao = db.recolectorDao();
                 if (rdao.listAll().isEmpty()) {
                     Recolector r1 = new Recolector();
-                    r1.nombre = "Juan R.";
-                    r1.municipio = "Bogotá";
-                    r1.zona = "Chicó";
-                    r1.vehiculo = "MOTO";
-                    r1.capacidad = 10; r1.cargaActual = 0; r1.activo = true;
-                    r1.userEmail = "recolector@gmail.com";
-                    r1.createdAt = System.currentTimeMillis();
+                    r1.nombre = "Juan R."; r1.municipio = "Bogotá"; r1.zona = "Chicó";
+                    r1.vehiculo = "MOTO"; r1.capacidad = 10; r1.cargaActual = 0; r1.activo = true;
+                    r1.userEmail = "recolector@gmail.com"; r1.createdAt = System.currentTimeMillis();
                     db.recolectorDao().insert(r1);
 
                     Recolector r2 = new Recolector();
-                    r2.nombre = "Ana P.";
-                    r2.municipio = "Bogotá";
-                    r2.zona = "Chapinero";
-                    r2.vehiculo = "BICI";
-                    r2.capacidad = 8; r2.cargaActual = 0; r2.activo = true;
-                    r2.userEmail = "recolector2@gmail.com";
-                    r2.createdAt = System.currentTimeMillis();
+                    r2.nombre = "Ana P."; r2.municipio = "Bogotá"; r2.zona = "Chapinero";
+                    r2.vehiculo = "BICI"; r2.capacidad = 8; r2.cargaActual = 0; r2.activo = true;
+                    r2.userEmail = "recolector2@gmail.com"; r2.createdAt = System.currentTimeMillis();
                     db.recolectorDao().insert(r2);
-
-
-                    Log.d(TAG, "Seed recolectores OK");
                 }
 
-                // Usuarios con rol
                 UserDao udao = db.userDao();
-
                 if (udao.findByEmail("asignador@gmail.com") == null) {
                     User admin = new User();
                     admin.email = "asignador@gmail.com";
-                    admin.passwordHash = PasswordUtils.sha256("123456"); // DEMO
+                    admin.passwordHash = PasswordUtils.sha256("123456");
                     admin.rol = "ASIGNADOR";
                     admin.createdAt = System.currentTimeMillis();
                     udao.insert(admin);
-                    Log.d(TAG, "Seed usuario ASIGNADOR OK");
                 }
-
                 if (udao.findByEmail("recolector@gmail.com") == null) {
-                    User recUser = new User();
-                    recUser.email = "recolector@gmail.com";
-                    recUser.passwordHash = PasswordUtils.sha256("123456"); // DEMO
-                    recUser.rol = "RECOLECTOR";
-                    recUser.createdAt = System.currentTimeMillis();
-                    udao.insert(recUser);
-                    Log.d(TAG, "Seed usuario RECOLECTOR OK");
-                }else if (udao.findByEmail("recolector2@gmail.com") == null) {
-                    User recUser = new User();
-                    recUser.email = "recolector2@gmail.com";
-                    recUser.passwordHash = PasswordUtils.sha256("123456"); // DEMO
-                    recUser.rol = "RECOLECTOR";
-                    recUser.createdAt = System.currentTimeMillis();
-                    udao.insert(recUser);
-                    Log.d(TAG, "Seed usuario RECOLECTOR OK");
+                    User u = new User();
+                    u.email = "recolector@gmail.com";
+                    u.passwordHash = PasswordUtils.sha256("123456");
+                    u.rol = "RECOLECTOR";
+                    u.createdAt = System.currentTimeMillis();
+                    udao.insert(u);
+                } else if (udao.findByEmail("recolector2@gmail.com") == null) {
+                    User u = new User();
+                    u.email = "recolector2@gmail.com";
+                    u.passwordHash = PasswordUtils.sha256("123456");
+                    u.rol = "RECOLECTOR";
+                    u.createdAt = System.currentTimeMillis();
+                    udao.insert(u);
                 }
 
-                // Solicitudes de demo + asignaciones automáticas para HOY
+                // Usuarios del sprint (operador y repartidores) + recolectadas demo
                 com.hfad.encomiendas.core.DemoSeeder.seed(getApplicationContext());
 
             } catch (Exception e) {
-                Log.e(TAG, "Error en seed de demo", e);
+                Log.e(TAG, "Seed demo error", e);
             }
         }).start();
     }

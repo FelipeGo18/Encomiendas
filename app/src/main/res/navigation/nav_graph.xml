@@ -93,4 +93,30 @@
             app:argType="integer" />
     </fragment>
 
+    <fragment
+        android:id="@+id/homeDashboardFragment"
+        android:name="com.hfad.encomiendas.ui.HomeDashboardFragment"
+        android:label="Panel">
+        <action
+            android:id="@+id/action_home_to_solicitar"
+            app:destination="@id/solicitarRecoleccionFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/hubDashboardFragment"
+        android:name="com.hfad.encomiendas.ui.HubDashboardFragment"
+        android:label="HUB"/>
+
+    <fragment
+        android:id="@+id/entregaFragment"
+        android:name="com.hfad.encomiendas.ui.EntregaFragment"
+        android:label="Entrega">
+        <argument android:name="manifiestoItemId" app:argType="integer"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/repartidorDashboardFragment"
+        android:name="com.hfad.encomiendas.ui.RepartidorDashboardFragment"
+        android:label="Repartidor" />
+
 </navigation>

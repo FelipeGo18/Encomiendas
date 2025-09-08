@@ -1,17 +1,16 @@
 package com.hfad.encomiendas.ui;
 
 import android.os.Bundle;
-import android.util.Patterns;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.NavOptions;
-import androidx.navigation.Navigation;
+import androidx.navigation.fragment.NavHostFragment;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
@@ -21,103 +20,94 @@ import com.hfad.encomiendas.core.PasswordUtils;
 import com.hfad.encomiendas.core.SessionManager;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.User;
-import com.hfad.encomiendas.data.UserDao;
 
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class LoginFragment extends Fragment {
 
-    private TextInputLayout tilEmail, tilPassword;
-    private TextInputEditText etEmail, etPassword;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private TextInputLayout tilEmail, tilPass;
+    private TextInputEditText etEmail, etPass;
+    private MaterialButton btnLogin, btnIrARegistro;
 
-    @Nullable
-    @Override
+    public LoginFragment() {}
+
+    @Nullable @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_login, container, false);
     }
 
     @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
+    public void onViewCreated(@NonNull View v, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(v, savedInstanceState);
 
-        tilEmail = view.findViewById(R.id.tilEmailLogin);
-        tilPassword = view.findViewById(R.id.tilPasswordLogin);
-        etEmail = view.findViewById(R.id.etEmailLogin);
-        etPassword = view.findViewById(R.id.etPasswordLogin);
+        tilEmail     = v.findViewById(R.id.tilEmail);
+        tilPass      = v.findViewById(R.id.tilPassword);
+        etEmail      = v.findViewById(R.id.etEmail);
+        etPass       = v.findViewById(R.id.etPassword);
+        btnLogin     = v.findViewById(R.id.btnLogin);
+        // <<< OJO: el id real del XML es btnIrARegistro
+        btnIrARegistro = v.findViewById(R.id.btnIrARegistro);
 
-        // Prefill si venimos del registro
-        if (getArguments() != null) {
-            String emailPrefill = getArguments().getString("email_prefill", "");
-            if (!emailPrefill.isEmpty()) etEmail.setText(emailPrefill);
+        if (btnLogin != null) {
+            btnLogin.setOnClickListener(view -> doLogin());
         }
-
-        MaterialButton btnLogin = view.findViewById(R.id.btnIniciarSesion);
-        MaterialButton btnIrARegistro = view.findViewById(R.id.btnIrARegistro);
-
-        btnLogin.setOnClickListener(v -> intentarLogin(view));
-        btnIrARegistro.setOnClickListener(v ->
-                Navigation.findNavController(view).navigate(R.id.action_login_to_registro));
+        if (btnIrARegistro != null) {
+            btnIrARegistro.setOnClickListener(view ->
+                    NavHostFragment.findNavController(this)
+                            .navigate(R.id.action_login_to_registro));
+        }
     }
 
-    private void intentarLogin(View root) {
-        clearErrors();
+    private void doLogin() {
+        String email = etEmail != null && etEmail.getText()!=null ? etEmail.getText().toString().trim() : "";
+        String pass  = etPass  != null && etPass.getText()!=null  ? etPass.getText().toString().trim() : "";
 
-        String email = safeText(etEmail);
-        String pwd   = safeText(etPassword);
+        if (TextUtils.isEmpty(email)) { if (tilEmail!=null) tilEmail.setError("Requerido"); return; }
+        if (TextUtils.isEmpty(pass))  { if (tilPass !=null)  tilPass.setError("Requerido"); return; }
+        if (tilEmail!=null) tilEmail.setError(null);
+        if (tilPass !=null)  tilPass.setError(null);
 
-        boolean ok = true;
-        if (email.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            tilEmail.setError("Correo inválido"); ok = false;
-        }
-        if (pwd.length() < 6) {
-            tilPassword.setError("Mínimo 6 caracteres"); ok = false;
-        }
-        if (!ok) return;
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(requireContext());
+                User u = db.userDao().findByEmail(email);
+                String hash = PasswordUtils.sha256(pass);
 
-        String hash = PasswordUtils.sha256(pwd);
-        AppDatabase db = AppDatabase.getInstance(requireContext());
-        SessionManager sm = new SessionManager(requireContext());
+                if (u == null || u.passwordHash == null || !u.passwordHash.equals(hash)) {
+                    runOnUi(() -> { if (tilPass!=null) tilPass.setError("Credenciales inválidas"); });
+                    return;
+                }
 
-        executor.execute(() -> {
-            UserDao dao = db.userDao();
-            User u = dao.login(email, hash);
-            requireActivity().runOnUiThread(() -> {
-                if (u == null) {
-                    tilPassword.setError("Credenciales incorrectas");
-                    Toast.makeText(requireContext(), "Correo o contraseña inválidos", Toast.LENGTH_SHORT).show();
-                } else {
-                    String role = (u.rol == null || u.rol.isEmpty()) ? "REMITENTE" : u.rol;
-                    sm.login(email, role);
-                    Toast.makeText(requireContext(), "Bienvenido", Toast.LENGTH_SHORT).show();
+                // Guardar sesión con ROL
+                String role = (u.rol == null ? "" : u.rol.trim());
+                new SessionManager(requireContext()).login(email, role);
 
-                    // Limpia login del back stack
+                // Navegar por rol
+                int dest = R.id.homeDashboardFragment; // default REMITENTE
+                switch (role.toUpperCase()) {
+                    case "OPERADOR":
+                    case "OPERADOR_HUB":
+                        dest = R.id.hubDashboardFragment; break;
+                    case "REPARTIDOR":
+                        dest = R.id.repartidorDashboardFragment; break;
+                    case "ASIGNADOR":
+                        dest = R.id.asignadorFragment; break;
+                    case "RECOLECTOR":
+                        dest = R.id.misAsignacionesFragment; break;
+                }
+                int finalDest = dest;
+                runOnUi(() -> {
                     NavOptions opts = new NavOptions.Builder()
                             .setPopUpTo(R.id.loginFragment, true)
                             .build();
+                    NavHostFragment.findNavController(this).navigate(finalDest, null, opts);
+                });
 
-                    if ("ASIGNADOR".equalsIgnoreCase(role)) {
-                        Navigation.findNavController(root).navigate(R.id.asignadorFragment, null, opts);
-
-                    } else if ("RECOLECTOR".equalsIgnoreCase(role)) {
-                        Navigation.findNavController(root).navigate(R.id.misAsignacionesFragment, null, opts);
-
-                    } else { // REMITENTE u otros
-                        // Puedes usar la acción ya definida en el nav_graph (con popUpTo en el action) o forzar opts:
-                        Navigation.findNavController(root).navigate(R.id.action_login_to_recoleccion, null, opts);
-                    }
-                }
-            });
+            } catch (Exception e) {
+                runOnUi(() -> { if (tilPass!=null) tilPass.setError("Error: " + e.getMessage()); });
+            }
         });
     }
 
-    private void clearErrors() {
-        tilEmail.setError(null);
-        tilPassword.setError(null);
-    }
-
-    private String safeText(TextInputEditText et) {
-        return et.getText() == null ? "" : et.getText().toString().trim();
-    }
+    private void runOnUi(Runnable r) { if (!isAdded()) return; requireActivity().runOnUiThread(r); }
 }

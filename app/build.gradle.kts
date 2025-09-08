@@ -13,6 +13,16 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Lee MAPS_API_KEY de gradle.properties (o deja "" si aún no la tienes)
+        val mapsKey = (project.findProperty("MAPS_API_KEY") as String?) ?: ""
+
+        // Exponerla a código si la quieres usar con BuildConfig
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
+
+        // Si NO tienes una <meta-data ...> en el manifest, este placeholder NO es necesario.
+        // Puedes dejarlo, pero no lo usaremos:
+        manifestPlaceholders["MAPS_API_KEY"] = mapsKey
     }
 
     buildTypes {
@@ -25,14 +35,14 @@ android {
         }
     }
 
-    // Proyecto en Java
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_15
+        targetCompatibility = JavaVersion.VERSION_15
     }
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
@@ -43,14 +53,18 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.cardview:cardview:1.0.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
-    // Navigation (Java)
+
+    // Navigation (no dupliques)
     implementation("androidx.navigation:navigation-fragment:2.7.7")
     implementation("androidx.navigation:navigation-ui:2.7.7")
 
+    // ✅ SOLO Places (AUTOCOMPLETE). Quita Maps si no usas MapView:
+    implementation("com.google.android.libraries.places:places:3.5.0")
 
-    implementation("androidx.recyclerview:recyclerview:1.3.2")
-    // ---------- ROOM (Java) ----------
+    // ---------- ROOM ----------
     implementation("androidx.room:room-runtime:2.6.1")
     annotationProcessor("androidx.room:room-compiler:2.6.1")
 

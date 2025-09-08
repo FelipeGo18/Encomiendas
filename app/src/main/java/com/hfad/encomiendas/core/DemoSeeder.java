@@ -4,91 +4,97 @@ import android.content.Context;
 import android.util.Log;
 
 import com.hfad.encomiendas.data.AppDatabase;
-import com.hfad.encomiendas.data.Asignacion;
-import com.hfad.encomiendas.data.AsignacionDao;
+import com.hfad.encomiendas.data.Manifiesto;
+import com.hfad.encomiendas.data.ManifiestoDao;
+import com.hfad.encomiendas.data.ManifiestoItem;
 import com.hfad.encomiendas.data.Solicitud;
 import com.hfad.encomiendas.data.SolicitudDao;
+import com.hfad.encomiendas.data.User;
+import com.hfad.encomiendas.data.UserDao;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 
 public final class DemoSeeder {
-
     private static final String TAG = "DemoSeeder";
-
     private DemoSeeder() {}
 
     public static void seed(Context ctx) {
-        AppDatabase db = AppDatabase.getInstance(ctx);
-        SolicitudDao sdao = db.solicitudDao();
+        new Thread(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(ctx);
+                UserDao udao = db.userDao();
+                SolicitudDao sdao = db.solicitudDao();
+                ManifiestoDao mdao = db.manifiestoDao();
 
-        String hoy = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+                // 1) Limpia TODO primero (solo en desarrollo)
+                db.clearAllTables();
 
-        // Si hoy no hay solicitudes, creamos 3 de demo
-        List<Solicitud> existentes = sdao.listByFecha(hoy);
-        if (existentes == null || existentes.isEmpty()) {
-            Log.d(TAG, "Sembrando solicitudes demo para " + hoy);
+                // 2) Usuarios base (REMÍTENTE de demo + roles del sprint)
+                long remitenteId = upsertUserReturnId(udao,
+                        "remitente_demo@gmail.com", "123456", "REMITENTE");
+                upsertUserReturnId(udao, "operador@gmail.com",    "123456", "OPERADOR_HUB");
+                upsertUserReturnId(udao, "repartidor1@gmail.com", "123456", "REPARTIDOR");
 
-            insertarSolicitud(sdao,
-                    "Paquete", "Bogotá", "Medellín", "Efectivo", 120_000d,   // <-- Double (d)
-                    "Bogotá", "Calle 123 #45-67 Apto 101", "Chapinero",
-                    "MEDIANO",                                            // <-- tamaño
-                    hoy, "09:00", "10:00");
+                // 3) 3 solicitudes RECOLECTADAS (con remitenteId válido)
+                long now = System.currentTimeMillis();
+                for (int i = 1; i <= 3; i++) {
+                    Solicitud s = new Solicitud();
+                    s.remitenteId = remitenteId;                 // <-- FK válida
+                    s.recolectorId = null;
+                    s.direccion = "Cl. " + (100 + i) + " #45-" + (60 + i) + ", Bogotá, Colombia";
+                    s.fechaEpochMillis = now;
+                    s.ventanaInicioMillis = now + i * 60 * 60 * 1000L;
+                    s.ventanaFinMillis   = now + (i + 1) * 60 * 60 * 1000L;
+                    s.tipoPaquete = "Paquete DEMO " + i;
+                    s.notas = "Origen: Bogotá. OrigenDir: " + s.direccion +
+                            ". Destino: Ciudad " + i + ". DestinoDir: Calle Falsa " + i + " #00-00.";
+                    s.guia = "EC-DEMO-" + i;
+                    s.estado = "RECOLECTADA";
+                    sdao.insert(s);
+                }
 
-            insertarSolicitud(sdao,
-                    "Documento", "Bogotá", "Bogotá", "Tarjeta", 0d,        // <-- Double
-                    "Bogotá", "Carrera 7 #45-10 Oficina 301", "Teusaquillo",
-                    "SOBRE",
-                    hoy, "10:00", "11:00");
+                // 4) 1 manifiesto ABIERTO
+                Manifiesto m = new Manifiesto();
+                m.codigo = "M-" + new SimpleDateFormat("yyyyMMdd-HHmm", Locale.getDefault())
+                        .format(new Date(now));
+                m.fechaMillis = now;
+                m.estado = "ABIERTO";
+                m.createdAt = now;
+                int mid = (int) mdao.insertManifiesto(m);
 
-            insertarSolicitud(sdao,
-                    "Paquete", "Medellín", "Bogotá", "Efectivo", 80_000d,   // <-- Double
-                    "Medellín", "Cl 30 #55-10 Casa 2", "Belén",
-                    "GRANDE",
-                    hoy, "13:00", "14:00");
-        } else {
-            Log.d(TAG, "Ya existen solicitudes para hoy (" + existentes.size() + ")");
-        }
+                // 5) 3 ítems EN_HUB (uno por solicitud de hoy)
+                String hoy = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+                for (Solicitud s : sdao.listByFecha(hoy)) {
+                    ManifiestoItem it = new ManifiestoItem();
+                    it.manifiestoId = mid;            // <-- FK válida a manifiestos.id
+                    it.solicitudId = s.id;            // <-- FK válida a solicitudes.id
+                    it.guia = s.guia;
+                    it.destinoCiudad = "Ciudad " + s.id;
+                    it.destinoDireccion = "Calle Falsa " + s.id + " #00-00";
+                    it.otp = String.valueOf((int) (Math.random() * 900000) + 100000);
+                    it.estado = "EN_HUB";
+                    it.createdAt = System.currentTimeMillis();
+                    mdao.insertItem(it);
+                }
 
-        // Generar asignaciones automáticamente para hoy
-        AsignadorService svc = new AsignadorService(ctx);
-        int n = svc.generarRutasParaFecha(hoy);
-        Log.d(TAG, "Asignaciones generadas hoy: " + n);
-
-        // (Opcional) Log de asignaciones del recolector #1 para facilitar pruebas
-        AsignacionDao adao = db.asignacionDao();
-        List<Asignacion> asignacionesReco1 = adao.listByRecolectorAndFecha(1, hoy);
-        for (Asignacion a : asignacionesReco1) {
-            Log.d(TAG, "Asignación #" + a.id + " estado=" + a.estado + " orden=" + a.ordenRuta);
-        }
+                Log.d(TAG, "OK: 1 manifiesto ABIERTO + 3 ítems EN_HUB sembrados.");
+            } catch (Exception e) {
+                Log.e(TAG, "Seeder error", e);
+            }
+        }).start();
     }
 
-    private static void insertarSolicitud(SolicitudDao dao,
-                                          String tipo, String origen, String destino, String formaPago, Double valorDec,
-                                          String municipio, String direccion, String barrioVereda,
-                                          String tamanoPaquete,
-                                          String fecha, String desde, String hasta) {
-        Solicitud s = new Solicitud();
-        s.tipoProducto   = tipo;
-        s.ciudadOrigen   = origen;
-        s.ciudadDestino  = destino;
-        s.formaPago      = formaPago;
-        s.valorDeclarado = valorDec;          // Double en entidad
-
-        s.tamanoPaquete  = tamanoPaquete;     // NUEVO tamaño
-
-        s.municipio      = municipio;         // clave para el asignador
-        s.direccion      = direccion;
-        s.barrioVereda   = barrioVereda;
-
-        s.fecha          = fecha;
-        s.horaDesde      = desde;
-        s.horaHasta      = hasta;
-
-        s.createdAt      = System.currentTimeMillis(); // long
-
-        dao.insert(s);
+    /** Crea usuario si falta y devuelve su id (útil para FKs) */
+    private static long upsertUserReturnId(UserDao dao, String email, String pass, String rol) {
+        User u = dao.findByEmail(email);
+        if (u != null) return u.id;   // ya existe, devolvemos su id
+        u = new User();
+        u.email = email;
+        u.passwordHash = PasswordUtils.sha256(pass);
+        u.rol = rol;
+        u.createdAt = System.currentTimeMillis();
+        return dao.insert(u);
     }
 }
