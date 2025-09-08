@@ -50,7 +50,17 @@ public class HubDashboardFragment extends Fragment {
         rv.setAdapter(adapter);
 
         // aquí lo llamas
-        cargar();
+        MaterialButton btnClasificar = v.findViewById(R.id.btnClasificar);
+        btnClasificar.setOnClickListener(vw -> {
+            Executors.newSingleThreadExecutor().execute(() -> {
+                int creados = new com.hfad.encomiendas.core.HubService(requireContext())
+                        .clasificarGuiasPorDestino();  // NUEVO
+                runOnUi(() -> {
+                    Toast.makeText(requireContext(), "Clasificados: " + creados, Toast.LENGTH_SHORT).show();
+                    cargar(); // refresca la lista de manifiestos
+                });
+            });
+        });
     }
 
     /** Método para traer los manifiestos */

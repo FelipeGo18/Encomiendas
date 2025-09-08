@@ -25,7 +25,7 @@ public class Solicitud {
     public long fechaEpochMillis;
 
     /** NUEVO: ventana de atención */
-    public long ventanaInicioMillis;  // p.ej. 2025-09-05 14:00
+    public Long ventanaInicioMillis;  // p.ej. 2025-09-05 14:00
     public long ventanaFinMillis;     // p.ej. 2025-09-05 16:00
 
     /** NUEVO: detalles logísticos */

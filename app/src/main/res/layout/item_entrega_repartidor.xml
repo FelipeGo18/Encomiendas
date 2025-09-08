@@ -1,22 +1,48 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:padding="16dp"
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="4dp">
 
-    <TextView android:id="@+id/tvLinea1"
-        android:textStyle="bold"
-        android:textSize="16sp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <TextView android:id="@+id/tvLinea2"
-        android:layout_marginTop="4dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        <!-- Línea 1: Guía + estado -->
+        <TextView
+            android:id="@+id/tvLinea1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="EC-123456  •  EN_RUTA"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:textColor="?attr/colorOnSurface" />
 
-    <TextView android:id="@+id/tvLinea3"
-        android:layout_marginTop="2dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
-</LinearLayout>
+        <!-- Línea 2: Ciudad destino -->
+        <TextView
+            android:id="@+id/tvLinea2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Destino: Bogotá"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- Línea 3: Dirección -->
+        <TextView
+            android:id="@+id/tvLinea3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cra 50 #40-20"
+            android:textSize="14sp"
+            android:layout_marginTop="2dp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

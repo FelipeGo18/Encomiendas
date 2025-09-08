@@ -127,58 +127,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // en MainActivity.java
     private void seedDemoData() {
-        new Thread(() -> {
-            try {
-                AppDatabase db = AppDatabase.getInstance(getApplicationContext());
-
-                RecolectorDao rdao = db.recolectorDao();
-                if (rdao.listAll().isEmpty()) {
-                    Recolector r1 = new Recolector();
-                    r1.nombre = "Juan R."; r1.municipio = "Bogotá"; r1.zona = "Chicó";
-                    r1.vehiculo = "MOTO"; r1.capacidad = 10; r1.cargaActual = 0; r1.activo = true;
-                    r1.userEmail = "recolector@gmail.com"; r1.createdAt = System.currentTimeMillis();
-                    db.recolectorDao().insert(r1);
-
-                    Recolector r2 = new Recolector();
-                    r2.nombre = "Ana P."; r2.municipio = "Bogotá"; r2.zona = "Chapinero";
-                    r2.vehiculo = "BICI"; r2.capacidad = 8; r2.cargaActual = 0; r2.activo = true;
-                    r2.userEmail = "recolector2@gmail.com"; r2.createdAt = System.currentTimeMillis();
-                    db.recolectorDao().insert(r2);
-                }
-
-                UserDao udao = db.userDao();
-                if (udao.findByEmail("asignador@gmail.com") == null) {
-                    User admin = new User();
-                    admin.email = "asignador@gmail.com";
-                    admin.passwordHash = PasswordUtils.sha256("123456");
-                    admin.rol = "ASIGNADOR";
-                    admin.createdAt = System.currentTimeMillis();
-                    udao.insert(admin);
-                }
-                if (udao.findByEmail("recolector@gmail.com") == null) {
-                    User u = new User();
-                    u.email = "recolector@gmail.com";
-                    u.passwordHash = PasswordUtils.sha256("123456");
-                    u.rol = "RECOLECTOR";
-                    u.createdAt = System.currentTimeMillis();
-                    udao.insert(u);
-                } else if (udao.findByEmail("recolector2@gmail.com") == null) {
-                    User u = new User();
-                    u.email = "recolector2@gmail.com";
-                    u.passwordHash = PasswordUtils.sha256("123456");
-                    u.rol = "RECOLECTOR";
-                    u.createdAt = System.currentTimeMillis();
-                    udao.insert(u);
-                }
-
-                // Usuarios del sprint (operador y repartidores) + recolectadas demo
-                com.hfad.encomiendas.core.DemoSeeder.seed(getApplicationContext());
-
-            } catch (Exception e) {
-                Log.e(TAG, "Seed demo error", e);
-            }
-        }).start();
+        com.hfad.encomiendas.core.DemoSeeder.seedOnce(getApplicationContext());
     }
 
     @Override

@@ -1,3 +1,4 @@
+// com.hfad.encomiendas.ui.RepartidorDashboardFragment.java
 package com.hfad.encomiendas.ui;
 
 import android.os.Bundle;
@@ -6,14 +7,13 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.*;
 import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.core.SessionManager;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.ManifiestoItem;
-
 import java.util.*;
 import java.util.concurrent.Executors;
 
@@ -34,27 +34,16 @@ public class RepartidorDashboardFragment extends Fragment {
         rv = v.findViewById(R.id.rvEntregas);
         tvEmpty = v.findViewById(R.id.tvEmpty);
         rv.setLayoutManager(new LinearLayoutManager(requireContext()));
-        adapter = new EntregasAdapter(itemId -> {
-            // Navegar al detalle de ENTREGa (usa el arg 'manifiestoItemId')
-            Bundle args = EntregaFragment.argsOf(itemId);
-            NavHostFragment.findNavController(this).navigate(R.id.entregaFragment, args);
-        });
+        adapter = new EntregasAdapter(id -> openEntrega(id));
         rv.setAdapter(adapter);
         cargar();
-    }
-
-    @Override public void onResume() {
-        super.onResume();
-        cargar(); // refresca al volver del detalle
     }
 
     private void cargar() {
         Executors.newSingleThreadExecutor().execute(() -> {
             String email = new SessionManager(requireContext()).getEmail();
             List<ManifiestoItem> items = AppDatabase.getInstance(requireContext())
-                    .manifiestoDao()
-                    .listEnRutaParaRepartidor(email);
-
+                    .manifiestoDao().listEnRutaParaRepartidor(email);
             requireActivity().runOnUiThread(() -> {
                 adapter.setData(items == null ? Collections.emptyList() : items);
                 tvEmpty.setVisibility(adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
@@ -62,14 +51,21 @@ public class RepartidorDashboardFragment extends Fragment {
         });
     }
 
+    private void openEntrega(int itemId) {
+        Bundle args = new Bundle();
+        args.putInt("manifiestoItemId", itemId);
+        NavController nav = NavHostFragment.findNavController(this);
+        nav.navigate(R.id.entregaFragment, args);
+    }
+
     /* ===== Adapter ===== */
     static class EntregasAdapter extends RecyclerView.Adapter<VH> {
-        interface OnClick { void open(int itemId); }
+        interface OnClick { void run(int itemId); }
 
         private final List<ManifiestoItem> data = new ArrayList<>();
-        private final OnClick onClick;
+        private final OnClick click;
 
-        EntregasAdapter(OnClick onClick) { this.onClick = onClick; }
+        EntregasAdapter(OnClick c){ this.click = c; }
 
         void setData(List<ManifiestoItem> list){ data.clear(); data.addAll(list); notifyDataSetChanged(); }
 
@@ -77,19 +73,15 @@ public class RepartidorDashboardFragment extends Fragment {
             View v = LayoutInflater.from(p.getContext()).inflate(R.layout.item_entrega_repartidor, p, false);
             return new VH(v);
         }
-
         @Override public void onBindViewHolder(@NonNull VH h, int pos) {
             ManifiestoItem it = data.get(pos);
             h.tvLinea1.setText((it.guia==null?"—":it.guia) + "  •  " + (it.estado==null?"—":it.estado));
             h.tvLinea2.setText("Destino: " + (it.destinoCiudad==null?"—":it.destinoCiudad));
             h.tvLinea3.setText((it.destinoDireccion==null?"—":it.destinoDireccion));
-
-            h.itemView.setOnClickListener(v -> onClick.open(it.id)); // <-- abrir detalle
+            h.itemView.setOnClickListener(v -> click.run(it.id));
         }
-
         @Override public int getItemCount(){ return data.size(); }
     }
-
     static class VH extends RecyclerView.ViewHolder {
         TextView tvLinea1, tvLinea2, tvLinea3;
         VH(@NonNull View item){

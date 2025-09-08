@@ -1,3 +1,4 @@
+// com.hfad.encomiendas.data.ManifiestoDao.java
 package com.hfad.encomiendas.data;
 
 import androidx.room.Dao;
@@ -14,23 +15,14 @@ public interface ManifiestoDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     long insertManifiesto(Manifiesto m);
 
-    @Query("SELECT * FROM manifiestos WHERE estado IN ('ABIERTO','DESPACHADO') ORDER BY fechaMillis  DESC")
+    @Query("SELECT * FROM manifiestos WHERE estado IN ('ABIERTO','DESPACHADO') ORDER BY id DESC")
     List<Manifiesto> listAbiertosODespachados();
-
-
-    @Query("SELECT * FROM manifiestos WHERE id=:id LIMIT 1")
-    Manifiesto getById(int id);
-
-    @Query("SELECT * FROM manifiestos WHERE estado='ABIERTO' ORDER BY fechaMillis DESC LIMIT 1")
-    Manifiesto getUltimoAbierto();
 
     @Query("SELECT COUNT(*) FROM manifiestos")
     int countAll();
 
     @Query("UPDATE manifiestos SET estado='DESPACHADO', despachoMillis=:ts, repartidorEmail=:email WHERE id=:id")
     void despacharManifiesto(int id, long ts, String email);
-
-
 
     // --- Items ---
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -60,51 +52,30 @@ public interface ManifiestoDao {
     @Query("SELECT COUNT(*) FROM manifiesto_items WHERE solicitudId=:solId")
     int existsBySolicitud(long solId);
 
-    // === NUEVO: items para el repartidor logueado (no entregados) ===
-    @Query("SELECT mi.* " +
-            "FROM manifiesto_items mi " +
-            "JOIN manifiestos m ON m.id = mi.manifiestoId " +
-            "WHERE m.repartidorEmail = :email " +
-            "AND mi.estado IN ('EN_HUB','EN_RUTA') " +
-            "ORDER BY mi.id ASC")
-    List<ManifiestoItem> listItemsParaRepartidor(String email);
+    // ===== NUEVO =====
 
-    // === NUEVO: al despachar, poner los items EN_RUTA ===
-
-    // ManifiestoDao.java
-
-    @Query("UPDATE manifiesto_items " +
-            "SET estado='EN_RUTA' " +
-            "WHERE manifiestoId=:mid AND estado IN ('EN_HUB','CLASIFICADA')")
+    // Pone todos los ítems del manifiesto EN_RUTA cuando se despacha
+    @Query("UPDATE manifiesto_items SET estado='EN_RUTA' WHERE manifiestoId=:mid")
     void ponerItemsEnRuta(int mid);
 
-    @Query("SELECT mi.* " +
-            "FROM manifiesto_items mi " +
-            "JOIN manifiestos m ON m.id = mi.manifiestoId " +
-            "WHERE m.repartidorEmail=:email AND mi.estado in ('EN_RUTA','ENTREGADA')  " +
-            "ORDER BY mi.id DESC")
-    List<ManifiestoItem> listEntregasPara(String email);
-
-    // ********** CONSULTAS PARA EL REPARTIDOR **********
-    // Toma los ítems EN_RUTA del repartidor, usando JOIN con la tabla manifiestos
+    // Lista de entregas EN_RUTA para el email del repartidor asignado en el manifiesto
     @Query("""
-           SELECT mi.*
-           FROM manifiesto_items mi
-           JOIN manifiestos m ON m.id = mi.manifiestoId
-           WHERE m.repartidorEmail = :email
-             AND mi.estado = 'EN_RUTA'
-           ORDER BY mi.id DESC
+           SELECT i.* FROM manifiesto_items i
+           JOIN manifiestos m ON m.id = i.manifiestoId
+           WHERE m.repartidorEmail = :repartidorEmail AND i.estado = 'EN_RUTA'
+           ORDER BY i.id ASC
            """)
-    List<ManifiestoItem> listEnRutaParaRepartidor(String email);
+    List<ManifiestoItem> listEnRutaParaRepartidor(String repartidorEmail);
 
-    @Query("""
-           SELECT mi.*
-           FROM manifiesto_items mi
-           JOIN manifiestos m ON m.id = mi.manifiestoId
-           WHERE m.repartidorEmail = :email
-           ORDER BY mi.id DESC
-           """)
-    List<ManifiestoItem> listParaRepartidor(String email);
+    // Guarda coordenadas al marcar entrega
+    @Query("UPDATE manifiesto_items SET podLat=:lat, podLon=:lon WHERE id=:id")
+    void guardarPodUbicacion(int id, Double lat, Double lon);
 
+    // Busca un manifiesto por id
+    @Query("SELECT * FROM manifiestos WHERE id=:id LIMIT 1")
+    Manifiesto getById(int id);
 
+    // Devuelve el último manifiesto en estado ABIERTO (por fecha)
+    @Query("SELECT * FROM manifiestos WHERE estado='ABIERTO' ORDER BY fechaMillis DESC LIMIT 1")
+    Manifiesto getUltimoAbierto();
 }

@@ -133,7 +133,7 @@ public class DetalleRecoleccionFragment extends Fragment {
 
         btnGuardarFirma.setOnClickListener(view -> onGuardarFirma());
         btnLimpiar.setOnClickListener(view -> signView.clear());
-
+        btnConfirmarFoto.setOnClickListener(view -> onConfirmarFoto());
         cargarDetalle();
     }
 
@@ -269,6 +269,15 @@ public class DetalleRecoleccionFragment extends Fragment {
         if (guiaActiva) return;
         if (signView.isEmpty()) { toast("Dibuja la firma primero"); return; }
 
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Confirmar firma")
+                .setMessage("¿Deseas guardar esta firma como evidencia de recolección?")
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Guardar", (d, w) -> guardarFirmaDefinitiva())
+                .show();
+    }
+
+    private void guardarFirmaDefinitiva() {
         final String b64 = signView.getBitmapBase64();
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
@@ -279,6 +288,7 @@ public class DetalleRecoleccionFragment extends Fragment {
                     toast("Firma guardada");
                     updateSignatureSection();
                 });
+                // si tienes la regla “foto + firma => activar guía”, mantenlo:
                 verificarYActivarGuia();
             } catch (Exception e) {
                 runOnUi(() -> toast("Error guardando firma: " + e.getMessage()));
@@ -294,17 +304,23 @@ public class DetalleRecoleccionFragment extends Fragment {
 
                 boolean hayFoto  = (a != null && !TextUtils.isEmpty(a.evidenciaFotoUri));
                 boolean hayFirma = (a != null && !TextUtils.isEmpty(a.firmaBase64));
-
                 if (hayFoto && hayFirma && (a != null) && !a.guiaActiva) {
-                    db.asignacionDao().activarGuia(asignacionId);
-                    db.solicitudDao().marcarRecolectadaPorAsignacion(asignacionId);
-
-                    runOnUi(() -> {
-                        guiaActiva = true;
-                        tvEstado.setText("GUÍA ACTIVADA (RECOLECTADA)");
-                        updateUiEnabled();
-                        updateSignatureSection();
-                    });
+                    runOnUi(() -> new AlertDialog.Builder(requireContext())
+                            .setTitle("Activar guía")
+                            .setMessage("Se detectó foto y firma. ¿Activar guía y marcar RECOLECTADA?")
+                            .setNegativeButton("No", null)
+                            .setPositiveButton("Sí", (d,w) -> Executors.newSingleThreadExecutor().execute(() -> {
+                                db.asignacionDao().activarGuia(asignacionId);
+                                db.solicitudDao().marcarRecolectadaPorAsignacion(asignacionId);
+                                runOnUi(() -> {
+                                    guiaActiva = true;
+                                    tvEstado.setText("GUÍA ACTIVADA (RECOLECTADA)");
+                                    updateUiEnabled();
+                                    updateSignatureSection();
+                                });
+                            }))
+                            .show());
+                    return;
                 }
             } catch (Exception e) {
                 runOnUi(() -> toast("Error activando guía: " + e.getMessage()));

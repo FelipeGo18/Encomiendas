@@ -16,7 +16,7 @@ import androidx.room.RoomDatabase;
                 Manifiesto.class,         // <—
                 ManifiestoItem.class      // <—
         },
-        version =   /* súbelo +1 respecto a tu versión actual */  12,
+        version =   /* súbelo +1 respecto a tu versión actual */  15 ,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {

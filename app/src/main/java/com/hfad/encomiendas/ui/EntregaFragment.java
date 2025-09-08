@@ -26,6 +26,8 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.material.button.MaterialButton;
 import com.hfad.encomiendas.BuildConfig;
 import com.hfad.encomiendas.R;
@@ -55,9 +57,10 @@ public class EntregaFragment extends Fragment {
     private MaterialButton btnValidarOtp;
 
     private ImageView ivFoto;
-    private MaterialButton btnTomarFoto, btnPreviewFoto;
+    private MaterialButton btnTomarFoto;
     private SignatureView signView;
     private MaterialButton btnGuardarFirma, btnLimpiar;
+    private MaterialButton btnPreviewFoto;
 
     // Estado
     private String otpEsperado = null;
@@ -69,9 +72,12 @@ public class EntregaFragment extends Fragment {
     private ActivityResultLauncher<Uri> takePicture;
     private Uri pendingPhotoUri;
 
-    public EntregaFragment(){}
+    private FusedLocationProviderClient fused; // GPS client
 
-    @Nullable @Override
+    public EntregaFragment() {}
+
+    @Nullable
+    @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle s) {
         return inflater.inflate(R.layout.fragment_entrega, container, false);
     }
@@ -113,6 +119,8 @@ public class EntregaFragment extends Fragment {
         btnGuardarFirma = v.findViewById(R.id.btnGuardarFirma);
         btnLimpiar = v.findViewById(R.id.btnLimpiar);
 
+        fused = LocationServices.getFusedLocationProviderClient(requireContext()); // inicializar GPS
+
         btnValidarOtp.setOnClickListener(v1 -> validarOtp());
         btnTomarFoto.setOnClickListener(v12 -> solicitarFoto());
         btnPreviewFoto.setOnClickListener(v13 -> previewFoto());
@@ -131,19 +139,19 @@ public class EntregaFragment extends Fragment {
                 return;
             }
             otpEsperado = it.otp;
-            podFotoUri  = it.podFotoUri;     // nombres correctos
-            firmaB64    = it.podFirmaB64;    // nombres correctos
+            podFotoUri  = it.podFotoUri;
+            firmaB64    = it.podFirmaB64;
             entregada   = "ENTREGADA".equalsIgnoreCase(it.estado);
 
             runOnUi(() -> {
                 tvGuia.setText("Guía: " + (it.guia==null? "—": it.guia));
                 tvDestino.setText("Destino: " + (it.destinoDireccion==null? "—" : it.destinoDireccion));
-                tvEstado.setText(entregada ? "ENTREGADA" : it.estado);
+                tvEstado.setText(entregada ? "ENTREGADA" : ( "EN_RUTA".equalsIgnoreCase(it.estado) ? "EN RUTA" : it.estado ));
 
                 if (!TextUtils.isEmpty(podFotoUri)) {
                     ivFoto.setImageURI(Uri.parse(podFotoUri));
                 }
-                if (!TextUtils.isEmpty(firmaB64)) { // vista previa de firma si ya existe
+                if (!TextUtils.isEmpty(firmaB64)) {
                     signView.setEnabled(false);
                     signView.setAlpha(0.5f);
                     Bitmap bmp = decodeB64(firmaB64);
@@ -213,22 +221,57 @@ public class EntregaFragment extends Fragment {
         });
     }
 
-    /** Reglas: basta OTP válido *o* firma. Foto es opcional. */
+    /** Nueva lógica con GPS */
+    private void guardarUbicacionYMarcarEntregada() {
+        try {
+            fused.getLastLocation()
+                    .addOnSuccessListener(loc -> {
+                        Double lat = (loc != null) ? loc.getLatitude() : null;
+                        Double lon = (loc != null) ? loc.getLongitude() : null;
+                        Executors.newSingleThreadExecutor().execute(() -> {
+                            ManifiestoDao dao = AppDatabase.getInstance(requireContext()).manifiestoDao();
+                            if (lat != null && lon != null) dao.guardarPodUbicacion(itemId, lat, lon);
+                            dao.marcarEntregada(itemId, System.currentTimeMillis());
+                            runOnUi(() -> {
+                                entregada = true;
+                                updateEnabled();
+                                tvEstado.setText("ENTREGADA");
+                                toast("Entrega registrada");
+                            });
+                        });
+                    })
+                    .addOnFailureListener(e -> {
+                        Executors.newSingleThreadExecutor().execute(() -> {
+                            ManifiestoDao dao = AppDatabase.getInstance(requireContext()).manifiestoDao();
+                            dao.marcarEntregada(itemId, System.currentTimeMillis());
+                            runOnUi(() -> {
+                                entregada = true;
+                                updateEnabled();
+                                tvEstado.setText("ENTREGADA");
+                                toast("Entrega registrada (sin GPS)");
+                            });
+                        });
+                    });
+        } catch (SecurityException se) {
+            Executors.newSingleThreadExecutor().execute(() -> {
+                ManifiestoDao dao = AppDatabase.getInstance(requireContext()).manifiestoDao();
+                dao.marcarEntregada(itemId, System.currentTimeMillis());
+                runOnUi(() -> {
+                    entregada = true;
+                    updateEnabled();
+                    tvEstado.setText("ENTREGADA");
+                    toast("Entrega registrada (sin permiso GPS)");
+                });
+            });
+        }
+    }
+
     private void marcarEntregadaSiListo() {
         boolean ok = (!TextUtils.isEmpty(firmaB64)) ||
                 (etOtp.getText()!=null && etOtp.getText().toString().trim().equals(otpEsperado));
         if (!ok) { toast("Confirma OTP o firma primero"); return; }
 
-        Executors.newSingleThreadExecutor().execute(() -> {
-            ManifiestoDao dao = AppDatabase.getInstance(requireContext()).manifiestoDao();
-            dao.marcarEntregada(itemId, System.currentTimeMillis());
-            runOnUi(() -> {
-                entregada = true;
-                updateEnabled();
-                tvEstado.setText("ENTREGADA");
-                toast("Entrega registrada");
-            });
-        });
+        guardarUbicacionYMarcarEntregada();
     }
 
     private void updateEnabled() {

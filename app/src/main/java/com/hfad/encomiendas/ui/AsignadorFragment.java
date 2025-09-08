@@ -88,7 +88,7 @@ public class AsignadorFragment extends Fragment {
 
     private void cargarDemoParaFecha(String fecha) {
         Executors.newSingleThreadExecutor().execute(() -> {
-            com.hfad.encomiendas.core.DemoSeeder.seed(requireContext());
+            com.hfad.encomiendas.core.DemoSeeder.seedOnce(requireContext());
             runOnUi(() -> { toast("Demo cargada"); refrescarResumenYMapa(fecha); });
         });
     }
