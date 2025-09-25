@@ -1,74 +1,74 @@
 package com.hfad.encomiendas;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.navigation.NavController;
+import androidx.navigation.NavGraph;
+import androidx.navigation.NavInflater;
 import androidx.navigation.NavOptions;
 import androidx.navigation.fragment.NavHostFragment;
-import androidx.navigation.NavInflater;
-import androidx.navigation.NavGraph;
 
 import com.google.android.material.appbar.MaterialToolbar;
-import com.hfad.encomiendas.core.PasswordUtils;
+import com.hfad.encomiendas.core.NotificationHelper;
 import com.hfad.encomiendas.core.SessionManager;
-import com.hfad.encomiendas.data.AppDatabase;
-import com.hfad.encomiendas.data.Recolector;
-import com.hfad.encomiendas.data.RecolectorDao;
-import com.hfad.encomiendas.data.User;
-import com.hfad.encomiendas.data.UserDao;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private NavController navController;
-    private boolean routedAtStart = false;
+
+    private ActivityResultLauncher<String> notifPermLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        com.hfad.encomiendas.core.NotificationHelper.ensureChannels(this);
 
         MaterialToolbar toolbar = findViewById(R.id.topAppBar);
         setSupportActionBar(toolbar);
 
+        // Canal de notificaciones
+        NotificationHelper.ensureChannels(this);
+
+        // Permiso de notificaciones (13+)
+        notifPermLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                granted -> { /* opcional: feedback */ }
+        );
+        requestPostNotificationsIfNeeded();
+
+        // NavHost y controller
         NavHostFragment navHost = (NavHostFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.nav_host_fragment);
-        if (navHost == null) {
-            throw new IllegalStateException("Falta @id/nav_host_fragment en activity_main");
-        }
+        if (navHost == null) throw new IllegalStateException("Falta @id/nav_host_fragment");
         navController = navHost.getNavController();
-        NavInflater inflater = navController.getNavInflater();
-        NavGraph graph = inflater.inflate(R.navigation.nav_graph);
 
-        // SIEMPRE arrancamos en Login
-        graph.setStartDestination(R.id.loginFragment);
-        navController.setGraph(graph);
+        // ⚠ SOLO al primer create: configura el grafo y rutea por rol.
+        if (savedInstanceState == null) {
+            NavInflater inflater = navController.getNavInflater();
+            NavGraph graph = inflater.inflate(R.navigation.nav_graph);
+            graph.setStartDestination(R.id.loginFragment);
+            navController.setGraph(graph);
 
-        // Si ya hay sesión abierta → ruteo inmediato por rol
-        SessionManager sm = new SessionManager(this);
-        if (sm.isLoggedIn()) {
-            navigateByRole(sm.getRole());
-            routedAtStart = true;
-        }
-
-        seedDemoData();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Fallback por si vuelve y aún no estaba ruteado
-        if (!routedAtStart) {
             SessionManager sm = new SessionManager(this);
             if (sm.isLoggedIn()) {
                 navigateByRole(sm.getRole());
-                routedAtStart = true;
             }
         }
+
+        // Datos demo si quieres, no afecta el nav state
+        seedDemoData();
     }
 
     @Override
@@ -88,7 +88,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void doLogout() {
         new SessionManager(this).logout();
-        routedAtStart = false;
         try {
             NavOptions opts = new NavOptions.Builder()
                     .setPopUpTo(navController.getGraph().getStartDestinationId(), true)
@@ -108,13 +107,12 @@ public class MainActivity extends AppCompatActivity {
             case "OPERADOR_HUB":
                 destId = R.id.hubDashboardFragment; break;
             case "REPARTIDOR":
-                // pon aquí tu fragment de repartidor cuando lo tengas
                 destId = R.id.repartidorDashboardFragment; break;
             case "ASIGNADOR":
                 destId = R.id.asignadorFragment; break;
             case "RECOLECTOR":
                 destId = R.id.misAsignacionesFragment; break;
-            default: // REMITENTE
+            default:
                 destId = R.id.homeDashboardFragment; break;
         }
         try {
@@ -127,9 +125,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // en MainActivity.java
     private void seedDemoData() {
         com.hfad.encomiendas.core.DemoSeeder.seedOnce(getApplicationContext());
+    }
+
+    private void requestPostNotificationsIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        }
     }
 
     @Override

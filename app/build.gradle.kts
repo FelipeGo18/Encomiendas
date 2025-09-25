@@ -1,5 +1,7 @@
 plugins {
     id("com.android.application")
+    // Safe Args es OPCIONAL (solo si quieres clases Directions):
+    // id("androidx.navigation.safeargs")
 }
 
 android {
@@ -14,14 +16,8 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Lee MAPS_API_KEY de gradle.properties (o deja "" si aún no la tienes)
         val mapsKey = (project.findProperty("MAPS_API_KEY") as String?) ?: ""
-
-        // Exponerla a código si la quieres usar con BuildConfig
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
-
-        // Si NO tienes una <meta-data ...> en el manifest, este placeholder NO es necesario.
-        // Puedes dejarlo, pero no lo usaremos:
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey
     }
 
@@ -36,8 +32,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_15
-        targetCompatibility = JavaVersion.VERSION_15
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     buildFeatures {
@@ -47,29 +43,32 @@ android {
 }
 
 dependencies {
-    // Core/UI
+    // --- AndroidX UI ---
     implementation("androidx.core:core:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("androidx.cardview:cardview:1.0.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.cardview:cardview:1.0.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
+    // --- Navigation (¡clave para los atributos app:startDestination, app:destination, app:argType!) ---
+    val nav = "2.7.7"
+    implementation("androidx.navigation:navigation-fragment:$nav")
+    implementation("androidx.navigation:navigation-ui:$nav")
+    // explícito para evitar el error de aapt en algunos setups
+    implementation("androidx.navigation:navigation-runtime:$nav")
 
-    // Navigation (no dupliques)
-    implementation("androidx.navigation:navigation-fragment:2.7.7")
-    implementation("androidx.navigation:navigation-ui:2.7.7")
+    // --- Google Maps / Places ---
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
-
-    // ✅ SOLO Places (AUTOCOMPLETE). Quita Maps si no usas MapView:
     implementation("com.google.android.libraries.places:places:3.5.0")
 
-    // ---------- ROOM ----------
+    // --- Room ---
     implementation("androidx.room:room-runtime:2.6.1")
     annotationProcessor("androidx.room:room-compiler:2.6.1")
 
-    // Tests
+    // --- Tests ---
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

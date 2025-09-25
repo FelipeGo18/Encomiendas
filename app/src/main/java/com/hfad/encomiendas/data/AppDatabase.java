@@ -14,9 +14,11 @@ import androidx.room.RoomDatabase;
                 Asignacion.class,
                 Recolector.class,
                 Manifiesto.class,         // <—
-                ManifiestoItem.class      // <—
+                ManifiestoItem.class,   // <—
+                EtaCache.class,
+                TrackingEvent.class
         },
-        version =   /* súbelo +1 respecto a tu versión actual */  15 ,
+        version =   /* súbelo +1 respecto a tu versión actual */  17 ,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -28,6 +30,8 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract AsignacionDao asignacionDao();
     public abstract RecolectorDao recolectorDao();
     public abstract ManifiestoDao manifiestoDao();   // <— **ESTE ES EL QUE FALTABA**
+    public abstract EtaCacheDao etaCacheDao();
+    public abstract TrackingEventDao trackingEventDao();
 
     public static AppDatabase getInstance(Context ctx) {
         if (INSTANCE == null) {

@@ -16,6 +16,11 @@ public interface SolicitudDao {
     @Query("SELECT * FROM Solicitud WHERE id=:id LIMIT 1")
     Solicitud byId(long id);
 
+    @Query("SELECT s.* FROM Solicitud s " +
+            "JOIN asignaciones a ON a.solicitudId = s.id " +
+            "WHERE a.id = :asignacionId LIMIT 1")
+    Solicitud byAsignacionId(int asignacionId);
+
 
     @Query("UPDATE Solicitud SET estado='RECOLECTADA' " +
             "WHERE id = (SELECT solicitudId FROM asignaciones WHERE id=:asignacionId)")
@@ -143,8 +148,25 @@ public interface SolicitudDao {
     @Query("SELECT * FROM Solicitud WHERE remitenteId=:uid ORDER BY fechaEpochMillis DESC")
     List<Solicitud> listAllByUser(long uid);
 
+
     // POJOs de proyección
     class ZonaPendiente { public String zona; public int pendientes; }
+    // Dentro de SolicitudDao:
+
+    class SolicitudConEta {
+        @androidx.room.Embedded public Solicitud s;
+        @androidx.room.ColumnInfo(name = "eta") public String eta;
+    }
+
+    @Query("SELECT s.*, ec.eta AS eta " +
+            "FROM Solicitud s " +
+            "LEFT JOIN eta_cache ec ON ec.shipmentId = s.id " +
+            "WHERE s.remitenteId=:uid " +
+            "ORDER BY s.fechaEpochMillis DESC " +
+            "LIMIT :limit")
+    List<SolicitudConEta> listAllByUserWithEta(long uid ,int limit);
+
+
     class PendienteDetalle {
         public String tipoProducto;
         public String tamanoPaquete;

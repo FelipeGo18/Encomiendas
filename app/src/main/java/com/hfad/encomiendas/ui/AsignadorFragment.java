@@ -2,6 +2,7 @@ package com.hfad.encomiendas.ui;
 
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.hfad.encomiendas.R;
+import com.hfad.encomiendas.core.NotificationHelper;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Recolector;
 import com.hfad.encomiendas.data.AsignacionDao;
@@ -78,13 +80,29 @@ public class AsignadorFragment extends Fragment {
 
     private void asignarZona(String zona) {
         final String fecha = textOf(etFecha);
-        if (TextUtils.isEmpty(fecha) || TextUtils.isEmpty(zona)) { toast("Fecha/zona inválida"); return; }
+        if (TextUtils.isEmpty(fecha) || TextUtils.isEmpty(zona)) {
+            toast("Fecha/zona inválida");
+            return;
+        }
         Executors.newSingleThreadExecutor().execute(() -> {
-            com.hfad.encomiendas.core.AsignadorService svc = new com.hfad.encomiendas.core.AsignadorService(requireContext());
+            com.hfad.encomiendas.core.AsignadorService svc =
+                    new com.hfad.encomiendas.core.AsignadorService(requireContext());
             int n = svc.generarRutasParaFechaZona(fecha, zona);
-            runOnUi(() -> { toast("Asignadas " + n + " en " + zona); refrescarResumenYMapa(fecha); });
+
+            runOnUi(() -> {
+                toast("Asignadas " + n + " en " + zona);
+                refrescarResumenYMapa(fecha);
+
+                // Ir directo al detalle para ver la ruta trazada:
+                Bundle b = new Bundle();
+                b.putString("fecha", fecha);
+                b.putString("zona", zona);
+                androidx.navigation.Navigation.findNavController(requireView())
+                        .navigate(R.id.zonaDetalleFragment, b);
+            });
         });
     }
+
 
     private void cargarDemoParaFecha(String fecha) {
         Executors.newSingleThreadExecutor().execute(() -> {

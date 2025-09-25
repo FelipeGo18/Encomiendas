@@ -46,7 +46,6 @@ public class SolicitarRecoleccionFragment extends Fragment {
     private TextView tvDirOrigen;
     private MaterialAutoCompleteTextView etCiudadRecogida, etTipoZona, etBarrioVereda;
 
-    // Desglose manual opcional
     private SwitchMaterial swDesglosar;
     private LinearLayout llDesgloseDireccion;
     private TextInputEditText etTipoVia, etVia, etNumero, etAptoBloque;
@@ -58,17 +57,14 @@ public class SolicitarRecoleccionFragment extends Fragment {
     // ---- UI: Ventana de tiempo (12h) ----
     private TextInputEditText etFecha, etHoraDesde, etHoraHasta;
 
-    // ---- UI: Envío (tamaño) ----
+    // ---- UI: Envío / Pago ----
     private MaterialAutoCompleteTextView etTamanoPaquete;
-
-    // ---- UI: Pago ----
     private MaterialAutoCompleteTextView etFormaPago;
     private TextInputEditText etValorDeclarado, etIndicaciones;
 
-    // ---- Acción ----
     private MaterialButton btnSolicitar;
 
-    // ---- Estado: direcciones ----
+    // ---- Estado: direcciones / lugar ----
     private String dirOrigen = "", dirDestino = "";
     private Double latOrigen = null, lonOrigen = null;
     private Double latDestino = null, lonDestino = null;
@@ -81,8 +77,7 @@ public class SolicitarRecoleccionFragment extends Fragment {
 
     public SolicitarRecoleccionFragment() {}
 
-    @Nullable
-    @Override
+    @Nullable @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_solicitar_recoleccion, container, false);
     }
@@ -121,7 +116,6 @@ public class SolicitarRecoleccionFragment extends Fragment {
 
         btnSolicitar = v.findViewById(R.id.btnSolicitar);
 
-        // Dropdowns
         if (etTamanoPaquete != null) {
             etTamanoPaquete.setSimpleItems(R.array.tipos_producto);
             etTamanoPaquete.setOnClickListener(x -> etTamanoPaquete.showDropDown());
@@ -138,20 +132,17 @@ public class SolicitarRecoleccionFragment extends Fragment {
             etTipoZona.setOnFocusChangeListener((vv, f) -> { if (f) etTipoZona.showDropDown(); });
         }
 
-        // Toggle desglose
-        if (swDesglosar != null && llDesgloseDireccion != null) {
+        if (swDesglosar != null && llDesglosarDireccionVisible() == false) {
             swDesglosar.setOnCheckedChangeListener((b, isChecked) ->
                     llDesgloseDireccion.setVisibility(isChecked ? View.VISIBLE : View.GONE));
         }
 
-        // Fecha y horas (12h)
         setupDateField(etFecha);
         setupTimeField12(etHoraDesde, true);
         setupTimeField12(etHoraHasta, false);
 
         if (btnSolicitar != null) btnSolicitar.setOnClickListener(vw -> guardarSolicitud());
 
-        // Places
         ensurePlacesInit();
         attachAutocompleteOrigen();
         attachAutocompleteDestino();
@@ -171,22 +162,18 @@ public class SolicitarRecoleccionFragment extends Fragment {
             ac = AutocompleteSupportFragment.newInstance();
             getChildFragmentManager().beginTransaction().replace(R.id.flPlacesOrigen, ac).commitNow();
         }
-
         ac.setHint("Dirección de recogida…");
         ac.setCountries(Arrays.asList("CO"));
         ac.setPlaceFields(Arrays.asList(
                 Place.Field.ADDRESS, Place.Field.ADDRESS_COMPONENTS, Place.Field.LAT_LNG, Place.Field.NAME
         ));
-
         ac.setOnPlaceSelectedListener(new PlaceSelectionListener() {
             @Override public void onPlaceSelected(@NonNull Place place) {
                 dirOrigen = firstNonEmpty(place.getAddress(), place.getName());
                 tvDirOrigen.setText(dirOrigen);
 
-                if (place.getLatLng() != null) {
-                    latOrigen = place.getLatLng().latitude;
-                    lonOrigen = place.getLatLng().longitude;
-                } else { latOrigen = lonOrigen = null; }
+                if (place.getLatLng() != null) { latOrigen = place.getLatLng().latitude; lonOrigen = place.getLatLng().longitude; }
+                else { latOrigen = lonOrigen = null; }
 
                 munOrigen   = pickComponent(place, "locality");
                 if (isEmpty(munOrigen)) munOrigen = pickComponent(place, "administrative_area_level_2");
@@ -197,7 +184,6 @@ public class SolicitarRecoleccionFragment extends Fragment {
                         pickComponent(place, "sublocality"),
                         pickComponent(place, "sublocality_level_1")
                 );
-
                 zonaOrigen = inferZonaTipo(place);
 
                 if (!isEmpty(munOrigen) && etCiudadRecogida != null) etCiudadRecogida.setText(munOrigen, false);
@@ -224,22 +210,18 @@ public class SolicitarRecoleccionFragment extends Fragment {
             ac = AutocompleteSupportFragment.newInstance();
             getChildFragmentManager().beginTransaction().replace(R.id.flPlacesDestino, ac).commitNow();
         }
-
         ac.setHint("Dirección de destino…");
         ac.setCountries(Arrays.asList("CO"));
         ac.setPlaceFields(Arrays.asList(
                 Place.Field.ADDRESS, Place.Field.ADDRESS_COMPONENTS, Place.Field.LAT_LNG, Place.Field.NAME
         ));
-
         ac.setOnPlaceSelectedListener(new PlaceSelectionListener() {
             @Override public void onPlaceSelected(@NonNull Place place) {
                 dirDestino = firstNonEmpty(place.getAddress(), place.getName());
                 tvDirDestino.setText(dirDestino);
 
-                if (place.getLatLng() != null) {
-                    latDestino = place.getLatLng().latitude;
-                    lonDestino = place.getLatLng().longitude;
-                } else { latDestino = lonDestino = null; }
+                if (place.getLatLng() != null) { latDestino = place.getLatLng().latitude; lonDestino = place.getLatLng().longitude; }
+                else { latDestino = lonDestino = null; }
 
                 munDestino = firstNonEmpty(
                         pickComponent(place, "locality"),
@@ -296,18 +278,22 @@ public class SolicitarRecoleccionFragment extends Fragment {
         String hIniTxt  = textOf(etHoraDesde);
         String hFinTxt  = textOf(etHoraHasta);
 
-        // === NOTAS con separador " | " y claves estandarizadas ===
+        // === NOTAS con claves estandarizadas ===
         StringBuilder meta = new StringBuilder();
-        appendKV(meta, "Origen", safe(munOrigen));
-        appendKV(meta, "OrigenDir", safe(dirOrigen));
-        appendKV(meta, "Barrio", safe(barrioOrigen));     // ← ZONA REAL
-        appendKV(meta, "TipoZona", safe(zonaOrigen));     // informativo
-        appendKV(meta, "Destino", safe(munDestino));
-        appendKV(meta, "DestinoDir", safe(dirDestino));   // ← dirección completa destino
-        appendKV(meta, "Tamano", safe(tamano));
-        appendKV(meta, "Pago", safe(pago));
+        appendKV(meta, "Origen",     safe(munOrigen));
+        appendKV(meta, "OrigenDir",  safe(dirOrigen));
+
+        // **Usa "Zona"** (lo buscan tus SQL)
+        appendKV(meta, "Zona",       safe(firstNonEmpty(barrioOrigen, munOrigen)));
+        appendKV(meta, "TipoZona",   safe(zonaOrigen));
+
+        appendKV(meta, "Destino",    safe(munDestino));
+        appendKV(meta, "DestinoDir", safe(dirDestino));
+
+        appendKV(meta, "Tamano",     safe(tamano));
+        appendKV(meta, "Pago",       safe(pago));
         if (!isEmpty(valorDecl)) appendKV(meta, "Valor", "$" + valorDecl.trim());
-        appendKV(meta, "Fecha", safe(fechaTxt));
+        appendKV(meta, "Fecha",      safe(fechaTxt));
         if (!isEmpty(hIniTxt) && !isEmpty(hFinTxt)) appendKV(meta, "Ventana", hIniTxt + "-" + hFinTxt);
 
         final String notasFinal = isEmpty(indic) ? meta.toString()
@@ -327,7 +313,8 @@ public class SolicitarRecoleccionFragment extends Fragment {
                 s.remitenteId = remitenteId;
                 s.recolectorId = null;
 
-                s.direccion = dirOrigen; // principal = origen
+                // principal = origen
+                s.direccion = dirOrigen;
                 s.fechaEpochMillis = System.currentTimeMillis();
                 s.ventanaInicioMillis = ini;
                 s.ventanaFinMillis    = fin;
@@ -354,7 +341,7 @@ public class SolicitarRecoleccionFragment extends Fragment {
         });
     }
 
-    // ----------------- Helpers UI -----------------
+    // ----------------- Helpers UI / util -----------------
     private void setupDateField(@Nullable TextInputEditText et) {
         if (et == null) return;
         View.OnClickListener showPicker = vv -> {
@@ -388,10 +375,9 @@ public class SolicitarRecoleccionFragment extends Fragment {
                     (tp, hour24, minute) -> {
                         if (isStart) { startHour = hour24; startMinute = minute; }
                         else         { endHour = hour24;   endMinute   = minute; }
-
                         et.setText(formatTime12(hour24, minute));
                     },
-                    initHour, initMin, false // 12h
+                    initHour, initMin, false
             );
             dlg.show();
         };
@@ -415,14 +401,11 @@ public class SolicitarRecoleccionFragment extends Fragment {
         return cal.getTimeInMillis();
     }
 
-    // === NUEVO: separador consistende " | " ===
-    // Pon esto en la clase (helpers)
     private static void appendKV(StringBuilder sb, String key, String value) {
         if (value == null || value.trim().isEmpty()) return;
         if (sb.length() > 0) sb.append(" | ");
         sb.append(key).append(": ").append(value.trim());
     }
-
 
     private boolean llDesglosarDireccionVisible() {
         return llDesgloseDireccion != null && llDesgloseDireccion.getVisibility() == View.VISIBLE;
@@ -454,33 +437,20 @@ public class SolicitarRecoleccionFragment extends Fragment {
         if (etHoraDesde != null)      etHoraDesde.setText("");
         if (etHoraHasta != null)      etHoraHasta.setText("");
 
-        if (swDesglosar != null) swDesglosar.setChecked(false);
-
-        selectedDateMillis = 0L;
-        startHour = startMinute = endHour = endMinute = -1;
+        selectedDateMillis = 0L; startHour = startMinute = endHour = endMinute = -1;
     }
 
-    private void runOnUi(Runnable r) { if (!isAdded()) return; requireActivity().runOnUiThread(r); }
-    private void toast(String msg) { if (!isAdded()) return; Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show(); }
-
-
-    private static String safe(@Nullable String s) {
-        return (s == null) ? "" : s.trim();
+    private static String firstNonEmpty(String... xs) {
+        if (xs == null) return null;
+        for (String s : xs) if (s != null && !s.trim().isEmpty()) return s.trim();
+        return null;
     }
-
-    // Versión varargs: devuelve el primer no vacío
-    private static String safe(String... values) {
-        if (values == null) return "";
-        for (String v : values) if (v != null && !v.trim().isEmpty()) return v.trim();
-        return "";
+    private static String safe(String s){ return s==null? "": s; }
+    private static boolean isEmpty(String s){ return s==null || s.trim().isEmpty(); }
+    private static String textOf(@Nullable TextInputEditText et){ return (et==null||et.getText()==null)?"":et.getText().toString().trim(); }
+    private static String textOf(@Nullable com.google.android.material.textfield.MaterialAutoCompleteTextView atv){
+        return (atv==null || atv.getText()==null) ? "" : atv.getText().toString().trim();
     }
-
-    private static boolean isEmpty(String s) { return s == null || s.trim().isEmpty(); }
-    private static String textOf(@Nullable TextInputEditText et) { return (et == null || et.getText()==null) ? "" : et.getText().toString().trim(); }
-    private static String textOf(@Nullable MaterialAutoCompleteTextView et) { return (et == null || et.getText()==null) ? "" : et.getText().toString().trim(); }
-    private static String firstNonEmpty(String... arr) {
-        if (arr == null) return "";
-        for (String s : arr) if (!isEmpty(s)) return s;
-        return "";
-    }
+    private void runOnUi(Runnable r){ if(isAdded()) requireActivity().runOnUiThread(r); }
+    private void toast(String t){ if(isAdded()) Toast.makeText(requireContext(), t, Toast.LENGTH_SHORT).show(); }
 }

@@ -24,13 +24,18 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
 import com.hfad.encomiendas.BuildConfig;
 import com.hfad.encomiendas.R;
+import com.hfad.encomiendas.core.TrackingService;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Asignacion;
 import com.hfad.encomiendas.data.AsignacionDao;
+import com.hfad.encomiendas.data.Solicitud;
+import com.hfad.encomiendas.ui.adapters.TrackingAdapter;
 import com.hfad.encomiendas.ui.widgets.SignatureView;
 
 import java.io.File;
@@ -40,14 +45,26 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.Executors;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
+
 public class DetalleRecoleccionFragment extends Fragment {
 
     private static final String ARG_ID = "asignacionId";
 
     private int asignacionId;
 
-    // UI
+    // UI encabezado
     private TextView tvTitulo, tvSub, tvEstado;
+
+    // UI seguimiento (US-08)
+    private TextView tvEta;
+    private RecyclerView rvTimeline;
+    private TrackingAdapter trackingAdapter;
+    private TrackingService tracking;
+
+    // UI foto / firma
     private ImageView ivFoto;
     private MaterialButton btnTomarFoto, btnEditarFoto, btnConfirmarFoto, btnSoloEditar;
     private View llEditarConfirmar, llSoloEditar;
@@ -56,10 +73,13 @@ public class DetalleRecoleccionFragment extends Fragment {
     private SignatureView signView;
     private MaterialButton btnGuardarFirma, btnLimpiar;
 
-    // Estado DB
+    // Estado
     private boolean guiaActiva = false;
     private Integer ordenRuta = null;
     private String estado = "";
+
+    private long solicitudId = -1;
+    private Double destinoLat = null, destinoLon = null; // opcional si tu Solicitud tiene coords
 
     // Foto
     private Uri pendingPhotoUri = null;    // tomada pero no confirmada
@@ -68,9 +88,12 @@ public class DetalleRecoleccionFragment extends Fragment {
     // Firma
     private String firmaB64 = null;
 
-    // Cámara/permiso
+    // Permisos/cámara
     private ActivityResultLauncher<String> reqPermission;
     private ActivityResultLauncher<Uri> takePicture;
+
+    // Ubicación
+    private FusedLocationProviderClient fused;
 
     public DetalleRecoleccionFragment() {}
 
@@ -85,10 +108,10 @@ public class DetalleRecoleccionFragment extends Fragment {
         super.onCreate(savedInstanceState);
         asignacionId = getArguments() != null ? getArguments().getInt(ARG_ID, -1) : -1;
 
-        reqPermission = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-            if (granted) lanzarCamara();
-            else toast("Permiso de cámara denegado");
-        });
+        reqPermission = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                granted -> { if (granted) lanzarCamara(); else toast("Permiso de cámara denegado"); }
+        );
 
         takePicture = registerForActivityResult(new ActivityResultContracts.TakePicture(), ok -> {
             if (ok && pendingPhotoUri != null) {
@@ -106,10 +129,23 @@ public class DetalleRecoleccionFragment extends Fragment {
     public void onViewCreated(@NonNull View v, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(v, savedInstanceState);
 
+        // Encabezado
         tvTitulo = v.findViewById(R.id.tvTitulo);
         tvSub    = v.findViewById(R.id.tvSub);
         tvEstado = v.findViewById(R.id.tvEstado);
 
+        // Seguimiento (ETA + timeline)
+        tvEta = v.findViewById(R.id.tvEta);
+        rvTimeline = v.findViewById(R.id.rvTimeline);
+        if (rvTimeline != null) {
+            rvTimeline.setLayoutManager(new LinearLayoutManager(getContext()));
+            trackingAdapter = new TrackingAdapter();
+            rvTimeline.setAdapter(trackingAdapter);
+        }
+        tracking = new TrackingService(AppDatabase.getInstance(requireContext()));
+        fused = LocationServices.getFusedLocationProviderClient(requireContext());
+
+        // Foto
         ivFoto = v.findViewById(R.id.ivFoto);
         btnTomarFoto      = v.findViewById(R.id.btnTomarFoto);
         llEditarConfirmar = v.findViewById(R.id.llEditarConfirmar);
@@ -118,26 +154,27 @@ public class DetalleRecoleccionFragment extends Fragment {
         llSoloEditar      = v.findViewById(R.id.llSoloEditar);
         btnSoloEditar     = v.findViewById(R.id.btnSoloEditar);
 
+        // Firma
         ivFirmaPreview  = v.findViewById(R.id.ivFirmaPreview);
         signView        = v.findViewById(R.id.signView);
         btnGuardarFirma = v.findViewById(R.id.btnGuardarFirma);
         btnLimpiar      = v.findViewById(R.id.btnLimpiar);
 
+        // Listeners
         ivFoto.setOnClickListener(view -> showPreview());
-
         btnTomarFoto.setOnClickListener(view -> onTomarFoto());
         btnEditarFoto.setOnClickListener(view -> onTomarFoto());
         btnSoloEditar.setOnClickListener(view -> onTomarFoto());
         btnEditarFoto.setOnLongClickListener(v1 -> { borrarFoto(); return true; });
         btnSoloEditar.setOnLongClickListener(v12 -> { borrarFoto(); return true; });
-
         btnGuardarFirma.setOnClickListener(view -> onGuardarFirma());
         btnLimpiar.setOnClickListener(view -> signView.clear());
         btnConfirmarFoto.setOnClickListener(view -> onConfirmarFoto());
+
         cargarDetalle();
     }
 
-    /* ===== Carga de datos ===== */
+    /* ================== Carga de datos ================== */
     private void cargarDetalle() {
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
@@ -151,8 +188,26 @@ public class DetalleRecoleccionFragment extends Fragment {
 
                 savedPhotoUri = (a != null) ? a.evidenciaFotoUri : null;
                 pendingPhotoUri = (savedPhotoUri == null) ? null : Uri.parse(savedPhotoUri);
-
                 firmaB64 = (a != null) ? a.firmaBase64 : null;
+
+                // Resolver solicitudId y (opcional) coords destino
+                solicitudId = -1;
+                if (a != null && a.solicitudId > 0) {
+                    solicitudId = a.solicitudId;
+                } else {
+                    try {
+                        Solicitud sX = db.solicitudDao().byAsignacionId(asignacionId);
+                        if (sX != null) solicitudId = sX.id;
+                    } catch (Exception ignore) {}
+                }
+
+                Solicitud s = null;
+                if (solicitudId > 0) {
+                    s = db.solicitudDao().byId(solicitudId);
+                }
+                if (s != null) {
+                    try { destinoLat = s.lat; destinoLon = s.lon; } catch (Throwable ignore) {}
+                }
 
                 runOnUi(() -> {
                     tvTitulo.setText("#" + asignacionId + " • " + estado);
@@ -164,8 +219,10 @@ public class DetalleRecoleccionFragment extends Fragment {
                     }
 
                     updatePhotoButtons();
-                    updateSignatureSection();  // <<-- mostrar firma si existe
+                    updateSignatureSection();
                     updateUiEnabled();
+
+                    refreshTimelineAndEta();
                 });
 
             } catch (Exception e) {
@@ -174,7 +231,16 @@ public class DetalleRecoleccionFragment extends Fragment {
         });
     }
 
-    /* ===== Foto ===== */
+    /* ================== Seguimiento (US-08) ================== */
+    private void refreshTimelineAndEta() {
+        if (tracking == null || solicitudId <= 0) return;
+        tracking.loadTimelineAndEta(solicitudId, (events, eta) -> {
+            if (tvEta != null) tvEta.setText("ETA: " + (eta != null && eta.eta != null ? eta.eta : "—"));
+            if (trackingAdapter != null) trackingAdapter.submit(events);
+        });
+    }
+
+    /* ================== Foto ================== */
     private void onTomarFoto() {
         if (guiaActiva) return;
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA)
@@ -216,6 +282,15 @@ public class DetalleRecoleccionFragment extends Fragment {
                 runOnUi(() -> {
                     toast("Foto confirmada");
                     updatePhotoButtons();
+
+                    // Evento con ubicación (si hay permiso)
+                    if (solicitudId > 0) {
+                        logEventWithLocation(solicitudId, "EVIDENCE_PHOTO", "Foto confirmada",
+                                () -> tracking.loadEvents(solicitudId, evs -> {
+                                    if (trackingAdapter != null) trackingAdapter.submit(evs);
+                                }));
+                    }
+
                     verificarYActivarGuia();
                 });
             } catch (Exception e) {
@@ -264,7 +339,7 @@ public class DetalleRecoleccionFragment extends Fragment {
                 .show();
     }
 
-    /* ===== Firma & Guía ===== */
+    /* ================== Firma & Guía ================== */
     private void onGuardarFirma() {
         if (guiaActiva) return;
         if (signView.isEmpty()) { toast("Dibuja la firma primero"); return; }
@@ -287,8 +362,15 @@ public class DetalleRecoleccionFragment extends Fragment {
                     firmaB64 = b64;
                     toast("Firma guardada");
                     updateSignatureSection();
+
+                    // Evento con ubicación (si hay permiso)
+                    if (solicitudId > 0) {
+                        logEventWithLocation(solicitudId, "SIGNATURE_SAVED", "Firma guardada",
+                                () -> tracking.loadEvents(solicitudId, evs -> {
+                                    if (trackingAdapter != null) trackingAdapter.submit(evs);
+                                }));
+                    }
                 });
-                // si tienes la regla “foto + firma => activar guía”, mantenlo:
                 verificarYActivarGuia();
             } catch (Exception e) {
                 runOnUi(() -> toast("Error guardando firma: " + e.getMessage()));
@@ -312,15 +394,58 @@ public class DetalleRecoleccionFragment extends Fragment {
                             .setPositiveButton("Sí", (d,w) -> Executors.newSingleThreadExecutor().execute(() -> {
                                 db.asignacionDao().activarGuia(asignacionId);
                                 db.solicitudDao().marcarRecolectadaPorAsignacion(asignacionId);
+
                                 runOnUi(() -> {
                                     guiaActiva = true;
                                     tvEstado.setText("GUÍA ACTIVADA (RECOLECTADA)");
                                     updateUiEnabled();
                                     updateSignatureSection();
                                 });
+
+                                long sid = solicitudId;
+                                if (sid <= 0) {
+                                    Asignacion ax = db.asignacionDao().getById(asignacionId);
+                                    if (ax != null && ax.solicitudId > 0) sid = ax.solicitudId;
+                                    if (sid <= 0) {
+                                        try {
+                                            Solicitud sx = db.solicitudDao().byAsignacionId(asignacionId);
+                                            if (sx != null) sid = sx.id;
+                                            if (sx != null) { destinoLat = sx.lat; destinoLon = sx.lon; }
+                                        } catch (Exception ignore) {}
+                                    }
+                                }
+
+                                if (sid > 0) {
+                                    // Evento con ubicación
+                                    logEventWithLocation(sid, "PICKED_UP", "Guía activada y recolectada", null);
+
+                                    // ETA (cálculo local simple)
+                                    String etaIso;
+                                    if (destinoLat != null && destinoLon != null) {
+                                        // En demo: usa mismas coords para no fallar; ajusta si tienes origen real.
+                                        double origenLat = destinoLat;
+                                        double origenLon = destinoLon;
+                                        double km;
+                                        try {
+                                            km = TrackingService.haversine(origenLat, origenLon, destinoLat, destinoLon);
+                                            if (km <= 0) km = 5.0;
+                                        } catch (Exception ex) { km = 5.0; }
+                                        etaIso = TrackingService.calcEtaIso(km, 22);
+                                    } else {
+                                        etaIso = TrackingService.calcEtaIso(5.0, 20);
+                                    }
+
+                                    final long fsid = sid;
+                                    tracking.upsertEta(sid, etaIso, "calc",
+                                            () -> {
+                                                if (tvEta != null) tvEta.setText("ETA: " + etaIso);
+                                                tracking.loadEvents(fsid, evs -> {
+                                                    if (trackingAdapter != null) trackingAdapter.submit(evs);
+                                                });
+                                            });
+                                }
                             }))
                             .show());
-                    return;
                 }
             } catch (Exception e) {
                 runOnUi(() -> toast("Error activando guía: " + e.getMessage()));
@@ -328,7 +453,7 @@ public class DetalleRecoleccionFragment extends Fragment {
         });
     }
 
-    /* ===== UI helpers ===== */
+    /* ================== Helper: firma UI ================== */
     private void updateSignatureSection() {
         boolean hasFirma = !TextUtils.isEmpty(firmaB64);
 
@@ -348,14 +473,12 @@ public class DetalleRecoleccionFragment extends Fragment {
             btnLimpiar.setVisibility(View.VISIBLE);
         }
 
-        // si la guía está activa o ya hay firma => no editable
         boolean enableDrawing = !guiaActiva && !hasFirma;
         signView.setEnabled(enableDrawing);
         btnGuardarFirma.setEnabled(enableDrawing);
         btnLimpiar.setEnabled(enableDrawing);
-        signView.setAlpha(enableDrawing ? 1f : 0.5f);
-        btnGuardarFirma.setAlpha(enableDrawing ? 1f : 0.5f);
-        btnLimpiar.setAlpha(enableDrawing ? 1f : 0.5f);
+        float a = enableDrawing ? 1f : 0.5f;
+        signView.setAlpha(a); btnGuardarFirma.setAlpha(a); btnLimpiar.setAlpha(a);
     }
 
     private Bitmap decodeB64(String b64) {
@@ -370,7 +493,7 @@ public class DetalleRecoleccionFragment extends Fragment {
     private void updateUiEnabled() {
         boolean enabled = !guiaActiva;
 
-        ivFoto.setClickable(true); // seguimos permitiendo vista previa
+        ivFoto.setClickable(true);
         btnTomarFoto.setEnabled(enabled);
         btnEditarFoto.setEnabled(enabled);
         btnConfirmarFoto.setEnabled(enabled);
@@ -383,6 +506,31 @@ public class DetalleRecoleccionFragment extends Fragment {
         btnSoloEditar.setAlpha(alpha);
     }
 
+    /* ================== Helper: tracking con ubicación ================== */
+    private void logEventWithLocation(long sid, String type, String detail, @Nullable Runnable afterUi) {
+        if (tracking == null) return;
+
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            fused.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+                    .addOnSuccessListener(loc -> {
+                        Double lat = (loc != null) ? loc.getLatitude() : null;
+                        Double lon = (loc != null) ? loc.getLongitude() : null;
+                        tracking.logEvent(sid, type, detail, lat, lon,
+                                () -> { if (afterUi != null) runOnUi(afterUi); });
+                    })
+                    .addOnFailureListener(e -> {
+                        tracking.logEvent(sid, type, detail, null, null,
+                                () -> { if (afterUi != null) runOnUi(afterUi); });
+                    });
+        } else {
+            // sin permiso → registramos sin coordenadas
+            tracking.logEvent(sid, type, detail, null, null,
+                    () -> { if (afterUi != null) runOnUi(afterUi); });
+        }
+    }
+
+    /* ================== Utiles ================== */
     private void runOnUi(Runnable r) { if (!isAdded()) return; requireActivity().runOnUiThread(r); }
     private void toast(String s) { if (!isAdded()) return; Toast.makeText(requireContext(), s, Toast.LENGTH_SHORT).show(); }
 }

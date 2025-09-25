@@ -1,28 +1,50 @@
 package com.hfad.encomiendas.data;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.room.Entity;
+import androidx.room.ForeignKey;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
-@Entity(tableName = "asignaciones")
+@Entity(
+        tableName = "asignaciones",
+        foreignKeys = {
+                @ForeignKey(
+                        entity = Solicitud.class,
+                        parentColumns = "id",
+                        childColumns = "solicitudId",
+                        onDelete = ForeignKey.CASCADE
+                ),
+                @ForeignKey(
+                        entity = Recolector.class,            // Asegúrate: @Entity(tableName="recolectores")
+                        parentColumns = "id",
+                        childColumns = "recolectorId",
+                        onDelete = ForeignKey.CASCADE
+                )
+        },
+        indices = {
+                @Index("solicitudId"),
+                @Index("recolectorId"),
+                @Index("fecha") // muy usado en filtros y en el mapa
+        }
+)
 public class Asignacion {
     @PrimaryKey(autoGenerate = true)
     public int id;
 
-    public Integer solicitudId;      // FK a solicitudes.id
-    public Integer recolectorId;     // FK a recolectores.id
+    @NonNull public Integer solicitudId;     // FK a Solicitud.id
+    @NonNull public Integer recolectorId;    // FK a Recolector.id
 
-    public String fecha;             // YYYY-MM-DD
-    public String estado;            // ASIGNADA, RECOLECTADA, etc.
-    public Integer ordenRuta;        // 1,2,3...
+    @NonNull public String fecha;            // "yyyy-MM-dd" (requerido por tus queries)
+    @NonNull public String estado;           // "ASIGNADA","RECOLECTADA",...
 
-
+    @NonNull public Integer ordenRuta;       // 1,2,3...
 
     // Evidencias
-    public String evidenciaFotoUri;  // content://... (o file://...)
-    public String firmaBase64;       // PNG en base64
+    @Nullable public String evidenciaFotoUri;
+    @Nullable public String firmaBase64;
 
-    // Guía activada (cuando hay foto+firma válidas)
-    public boolean guiaActiva;
-
-    public long createdAt;
+    public boolean guiaActiva;               // false al crear
+    public long createdAt;                   // System.currentTimeMillis() al crear
 }

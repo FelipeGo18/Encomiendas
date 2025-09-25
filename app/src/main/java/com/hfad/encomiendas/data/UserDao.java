@@ -5,6 +5,8 @@ import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 
+import java.util.List;
+
 @Dao
 public interface UserDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -15,4 +17,15 @@ public interface UserDao {
 
     @Query("SELECT * FROM users WHERE email = :email AND passwordHash = :hash LIMIT 1")
     User login(String email, String hash);
+
+    @Query("SELECT * FROM users WHERE id=:id LIMIT 1")
+    User byId(long id);
+
+    // Recolectores por rol
+    @Query("SELECT * FROM users WHERE LOWER(rol)='recolector'")
+    List<User> listRecolectores();
+
+    // (Opcional) Todos
+    @Query("SELECT * FROM users ORDER BY id DESC")
+    List<User> listAll();
 }

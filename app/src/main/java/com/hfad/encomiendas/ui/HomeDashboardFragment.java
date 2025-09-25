@@ -22,6 +22,8 @@ import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.core.SessionManager;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Solicitud;
+import com.hfad.encomiendas.data.SolicitudDao;
+import com.hfad.encomiendas.data.TrackingEventDao;
 
 import java.text.Normalizer;
 import java.text.SimpleDateFormat;
@@ -63,7 +65,7 @@ public class HomeDashboardFragment extends Fragment {
         btnCrear           = v.findViewById(R.id.btnCrear);
 
         rvSolicitudes.setLayoutManager(new LinearLayoutManager(requireContext()));
-        adapter = new UltimasAdapter();
+        adapter = new UltimasAdapter(AppDatabase.getInstance(requireContext()));
         rvSolicitudes.setAdapter(adapter);
 
         SessionManager sm = new SessionManager(requireContext());
@@ -109,7 +111,9 @@ public class HomeDashboardFragment extends Fragment {
                 int cPend = db.solicitudDao().countByEstado(u.id, "PENDIENTE");
                 int cAsig = db.solicitudDao().countByEstado(u.id, "ASIGNADA");
                 int cReco = db.solicitudDao().countByEstado(u.id, "RECOLECTADA");
-                List<Solicitud> ultimas = db.solicitudDao().listRecentByUser(u.id, 20);
+
+                List<SolicitudDao.SolicitudConEta> ultimas =
+                        db.solicitudDao().listAllByUserWithEta(u.id, 20);
 
                 runOnUi(() -> {
                     tvCountPendientes.setText(String.valueOf(cPend));
@@ -133,11 +137,14 @@ public class HomeDashboardFragment extends Fragment {
     /* ==================== Adapter ==================== */
 
     private static class UltimasAdapter extends RecyclerView.Adapter<VH> {
-        private final List<Solicitud> data = new ArrayList<>();
+        private final List<SolicitudDao.SolicitudConEta> data = new ArrayList<>();
         private final SimpleDateFormat dfFecha = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
         private final SimpleDateFormat dfHora  = new SimpleDateFormat("h:mm a", Locale.getDefault());
+        private final AppDatabase db;
 
-        void setData(List<Solicitud> list) {
+        UltimasAdapter(AppDatabase db) { this.db = db; }
+
+        void setData(List<SolicitudDao.SolicitudConEta> list) {
             data.clear();
             if (list != null) data.addAll(list);
             notifyDataSetChanged();
@@ -151,7 +158,8 @@ public class HomeDashboardFragment extends Fragment {
 
         @Override
         public void onBindViewHolder(@NonNull VH h, int position) {
-            Solicitud s = data.get(position);
+            SolicitudDao.SolicitudConEta it = data.get(position);
+            Solicitud s = it.s;
 
             h.tvGuiaEstado.setText(nn(s.guia) + "  •  " + nn(s.estado));
 
@@ -160,24 +168,31 @@ public class HomeDashboardFragment extends Fragment {
             String hFin  = dfHora.format(new Date(s.ventanaFinMillis));
             h.tvRango.setText(fecha + ", " + hIni + " - " + hFin);
 
+            h.tvEta.setText("ETA: " + prettyEta(it.eta));
             h.tvDireccion.setText( normalizeAddress(s.direccion) );
 
-            // Destino: primero la dirección completa; si no, la ciudad
-            String destino = firstNonEmpty(
-                    meta(s.notas, "DestinoDir"),
-                    meta(s.notas, "Destino")
-            );
+            String destino = firstNonEmpty(meta(s.notas, "DestinoDir"), meta(s.notas, "Destino"));
             h.tvDestino.setText("Destino: " + nn(destino));
+
+            h.tvUbicacion.setText("Ubicación: —");
+            long sid = s.id;
+            Executors.newSingleThreadExecutor().execute(() -> {
+                TrackingEventDao.LastLoc loc = db.trackingEventDao().lastLocationForShipment(sid);
+                String txt = "—";
+                if (loc != null && loc.lat != null && loc.lon != null) {
+                    txt = String.format(Locale.getDefault(), "%.5f, %.5f", loc.lat, loc.lon);
+                }
+                final String fin = "Ubicación: " + txt;
+                h.itemView.post(() -> h.tvUbicacion.setText(fin));
+            });
         }
 
         @Override public int getItemCount() { return data.size(); }
 
         private static String nn(String s) { return (s == null || s.trim().isEmpty()) ? "—" : s.trim(); }
 
-        /** Extrae "Key: value" tolerando puntos dentro del valor. Para y corta en el siguiente "Xxx:" o en "|" o fin. */
         private static String meta(String notas, String key) {
             if (notas == null) return "";
-            // 1) Intento principal: detener en | o en el próximo "PalabraConMayúscula:"
             Pattern p = Pattern.compile(
                     "\\b" + Pattern.quote(key) + "\\s*:\\s*(.*?)\\s*(?:\\|\\s*|(?=[A-ZÁÉÍÓÚÑ][\\wÁÉÍÓÚÑáéíóúñ ]*:\\s*)|$)",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL
@@ -185,7 +200,6 @@ public class HomeDashboardFragment extends Fragment {
             Matcher m = p.matcher(notas);
             if (m.find()) return m.group(1).trim();
 
-            // 2) Fallback muy permisivo: desde "key:" hasta fin (por compatibilidad antigua con ". ")
             Pattern p2 = Pattern.compile("\\b" + Pattern.quote(key) + "\\s*:\\s*(.*)$",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
             Matcher m2 = p2.matcher(notas);
@@ -198,7 +212,6 @@ public class HomeDashboardFragment extends Fragment {
             return "";
         }
 
-        /** Limpia repeticiones (Bogotá, D.C., Bogotá, …). */
         private static String normalizeAddress(String raw) {
             if (raw == null) return "—";
             String[] parts = raw.split(",");
@@ -224,21 +237,27 @@ public class HomeDashboardFragment extends Fragment {
             }
             return cleaned.isEmpty() ? raw.trim() : TextUtils.join(", ", cleaned);
         }
+
+        private static String prettyEta(String iso){
+            if (iso == null || iso.trim().isEmpty()) return "—";
+            int t = iso.indexOf('T');
+            if (t >= 0 && iso.length() >= t + 6) return iso.substring(t + 1, t + 6);
+            return iso;
+        }
     }
 
     private static class VH extends RecyclerView.ViewHolder {
-        TextView tvGuiaEstado, tvRango, tvDireccion, tvDestino;
+        TextView tvGuiaEstado, tvRango, tvEta, tvDireccion, tvDestino, tvUbicacion;
         VH(@NonNull View itemView) {
             super(itemView);
             tvGuiaEstado = itemView.findViewById(R.id.tvGuiaEstado);
             tvRango      = itemView.findViewById(R.id.tvRango);
+            tvEta        = itemView.findViewById(R.id.tvEta);
             tvDireccion  = itemView.findViewById(R.id.tvDireccion);
             tvDestino    = itemView.findViewById(R.id.tvDestino);
+            tvUbicacion  = itemView.findViewById(R.id.tvUbicacion);
         }
     }
 
-    private void runOnUi(Runnable r) {
-        if (!isAdded()) return;
-        requireActivity().runOnUiThread(r);
-    }
+    private void runOnUi(Runnable r) { if (!isAdded()) return; requireActivity().runOnUiThread(r); }
 }

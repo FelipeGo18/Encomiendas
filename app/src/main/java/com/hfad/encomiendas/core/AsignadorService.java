@@ -4,177 +4,132 @@ import android.content.Context;
 
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Asignacion;
-import com.hfad.encomiendas.data.AsignacionDao;
 import com.hfad.encomiendas.data.Recolector;
-import com.hfad.encomiendas.data.RecolectorDao;
 import com.hfad.encomiendas.data.Solicitud;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
 public class AsignadorService {
-
     private final AppDatabase db;
+    private final Context context;
 
     public AsignadorService(Context ctx) {
+        this.context = ctx.getApplicationContext();
         this.db = AppDatabase.getInstance(ctx);
     }
 
-    /** Asigna todas las solicitudes pendientes de una fecha (todas las zonas). */
-    public int generarRutasParaFecha(String fecha) {
-        List<Solicitud> pendientes = db.solicitudDao().listUnassignedByFechaZona(fecha, "");
-        return asignarLote(pendientes, fecha);
-    }
-
-    /** Asigna solo las solicitudes pendientes de una zona (zona = barrio/localidad). */
+    /** Asigna todas las pendientes de una zona al recolector de esa zona (si existe). */
     public int generarRutasParaFechaZona(String fecha, String zona) {
-        List<Solicitud> pendientes = db.solicitudDao().listUnassignedByFechaZona(fecha, zona);
-        return asignarLote(pendientes, fecha);
+        if (fecha == null || fecha.trim().isEmpty()) fecha = yyyymmdd(System.currentTimeMillis());
+        if (zona == null) zona = "";
+
+        Recolector r = db.recolectorDao().findByZona(zona);
+        if (r == null) {
+            List<Recolector> all = db.recolectorDao().listAll();
+            if (all == null || all.isEmpty()) return 0;
+            r = all.get(0);
+        }
+        return generarRutasParaFechaZonaForRecolector(fecha, zona,  r.id);
     }
 
-    // ---------- Núcleo de asignación ----------
-    private int asignarLote(List<Solicitud> solicitudes, String fecha) {
-        if (solicitudes == null || solicitudes.isEmpty()) return 0;
+    /** Asigna las pendientes de la zona/fecha al recolector indicado, ordenadas por proximidad. */
+    public int generarRutasParaFechaZonaForRecolector(String fecha, String zona, int recolectorId) {
+        if (fecha == null || fecha.trim().isEmpty()) fecha = yyyymmdd(System.currentTimeMillis());
+        if (zona == null) zona = "";
 
-        RecolectorDao rdao = db.recolectorDao();
-        AsignacionDao adao = db.asignacionDao();
+        List<Solicitud> list = db.solicitudDao().listUnassignedByFechaZona(fecha, zona);
+        android.util.Log.d("ASIG", "pendientes zona=" + zona + " fecha=" + fecha + " -> " + (list==null?0:list.size()));
 
-        List<Recolector> recolectores = rdao.listAll();
-        if (recolectores == null) recolectores = new ArrayList<>();
+        if (list == null || list.isEmpty()) return 0;
 
-        // Tomamos solo activos
-        List<Recolector> activos = new ArrayList<>();
-        for (Recolector r : recolectores) {
-            if (r != null && r.activo) activos.add(r);
+        List<Solicitud> withLL = new ArrayList<>();
+        for (Solicitud s : list) {
+            if (s != null && s.lat != null && s.lon != null && s.lat != 0 && s.lon != 0) withLL.add(s);
         }
-        if (activos.isEmpty()) return 0;
+        if (withLL.isEmpty()) return 0;
 
-        int creadas = 0;
-        for (Solicitud s : solicitudes) {
-            Recolector best = pickRecolector(activos, s);
-            if (best == null) continue;
+        List<Solicitud> orden = greedyOrder(withLL);
 
-            Integer orden = siguienteOrden(fecha, best.id);
+        final int[] nInserted = {0};
 
-            Asignacion a = new Asignacion();
-            a.solicitudId  = (int) s.id;
-            a.recolectorId = best.id;
-            a.fecha        = fecha;
-            a.estado       = "ASIGNADA";
-            a.ordenRuta    = orden;
-            a.createdAt    = System.currentTimeMillis();
+        // >>> variables efectivamente finales
+        final String fFecha = fecha;
+        final int fRecolectorId = recolectorId;
 
-            adao.insert(a);
-
-            // También reflejamos en la solicitud
-            db.solicitudDao().asignar(s.id, best.id);
-
-            creadas++;
-        }
-        return creadas;
-    }
-
-    private Integer siguienteOrden(String fecha, int recolectorId) {
-        List<Asignacion> actuales = db.asignacionDao().listByRecolectorAndFecha(recolectorId, fecha);
-        int max = 0;
-        if (actuales != null) {
-            for (Asignacion a : actuales) {
-                if (a.ordenRuta != null && a.ordenRuta > max) max = a.ordenRuta;
+        db.runInTransaction(() -> {
+            int ordenRuta = 1;
+            List<Asignacion> nuevas = new ArrayList<>();
+            for (Solicitud s : orden) {
+                Asignacion a = new Asignacion();
+                a.solicitudId  = (int) s.id;
+                a.recolectorId = fRecolectorId;
+                a.ordenRuta    = ordenRuta++;
+                a.guiaActiva   = false;
+                a.estado       = "ASIGNADA";
+                a.fecha        = fFecha; // <-- asegúrate de tener este campo en la Entity
+                nuevas.add(a);
             }
-        }
-        return max + 1;
-    }
-
-    /** Score por municipio + BARRIO/LOCALIDAD (no "tipo de zona") + vehículo vs tamaño. */
-    private Recolector pickRecolector(List<Recolector> recs, Solicitud s) {
-        if (recs.isEmpty()) return null;
-
-        final String municipioS = extraerCampo(s.notas, "Municipio");
-        // Para zona de compatibilidad usamos el BARRIO/LOCALIDAD/VEREDA:
-        final String zonaS      = firstNonEmpty(
-                extraerCampo(s.notas, "Barrio"),
-                extraerCampo(s.notas, "Localidad"),
-                extraerCampo(s.notas, "Vereda")
-        );
-        final String tamanoS    = mapTamanoDesdeTipo(s.tipoPaquete);
-
-        recs.sort(new Comparator<Recolector>() {
-            @Override public int compare(Recolector r1, Recolector r2) {
-                int s1 = score(r1);
-                int s2 = score(r2);
-                if (s1 != s2) return Integer.compare(s2, s1);
-                return Integer.compare(r1.cargaActual, r2.cargaActual);
-            }
-
-            private int score(Recolector r) {
-                int sc = 0;
-                if (eq(municipioS, r.municipio)) sc += 1;
-                if (eq(zonaS, r.zona))           sc += 1;
-                if (vehOk(r.vehiculo, tamanoS))  sc += 1;
-                return sc;
-            }
-
-            private boolean eq(String a, String b) {
-                if (a == null || b == null) return false;
-                return a.trim().equalsIgnoreCase(b.trim());
-            }
-
-            private boolean vehOk(String vehiculo, String tam) {
-                if (vehiculo == null || tam == null) return true;
-                String v = vehiculo.toUpperCase(Locale.ROOT);
-                String t = tam.toUpperCase(Locale.ROOT).replace("Ñ", "N");
-                switch (v) {
-                    case "BICI":       return t.equals("SOBRE") || t.equals("PEQUENO");
-                    case "MOTO":       return !t.equals("VOLUMINOSO");
-                    case "CARRO":      return !t.equals("VOLUMINOSO");
-                    case "CAMIONETA":  return true;
-                    default:           return true;
-                }
-            }
+            db.asignacionDao().insertAll(nuevas);
+            for (Solicitud s : orden) db.solicitudDao().asignar(s.id, fRecolectorId);
+            nInserted[0] = nuevas.size();
         });
+        android.util.Log.d("ASIG", "insertadas=" + nInserted[0] + " para recolector=" + fRecolectorId);
 
-        for (Recolector r : recs) {
-            if (r.capacidad > 0 && r.cargaActual >= r.capacidad) continue;
-            return r;
+        NotificationHelper.showAssignments(
+                context,
+                "Asignaciones listas",
+                "Se generaron " + nInserted[0] + " recolecciones para la zona " + zona + ".",
+                ("asig_" + fecha + "_" + zona).hashCode()
+        );
+        NotificationHelper.notifyRecolector(
+                context, fRecolectorId, zona, fFecha, nInserted[0]
+        );
+        return nInserted[0];
+    }
+
+    // ---- Orden greedy por proximidad ----
+    private static List<Solicitud> greedyOrder(List<Solicitud> input) {
+        List<Solicitud> pool = new ArrayList<>(input);
+        List<Solicitud> out  = new ArrayList<>();
+        if (pool.isEmpty()) return out;
+
+        double cx=0, cy=0; int n=0;
+        for (Solicitud s : pool) { cx += s.lat; cy += s.lon; n++; }
+        double cLat = cx/n, cLon = cy/n;
+
+        Solicitud current = pool.get(0);
+        double best = Double.MAX_VALUE;
+        for (Solicitud s : pool) {
+            double d = dist(cLat,cLon,s.lat,s.lon);
+            if (d < best) { best = d; current = s; }
         }
-        return recs.get(0);
+        out.add(current); pool.remove(current);
+
+        while (!pool.isEmpty()) {
+            Solicitud next = pool.get(0); double bestD = Double.MAX_VALUE;
+            for (Solicitud s : pool) {
+                double d = dist(current.lat,current.lon,s.lat,s.lon);
+                if (d < bestD) { bestD = d; next = s; }
+            }
+            out.add(next); pool.remove(next); current = next;
+        }
+        return out;
     }
 
-    // ---------- Utils ----------
-    /** Notas separadas por " | " (ej: "Barrio: Chico | DestinoDir: Av 7 #...") */
-    private static String extraerCampo(String notas, String campo) {
-        if (notas == null) return null;
-        String txtLower = notas.toLowerCase(Locale.ROOT);
-        String key = (campo + ": ").toLowerCase(Locale.ROOT);
-
-        int start = txtLower.indexOf(key);
-        if (start < 0) return null;
-        start += key.length();
-
-        // Cortar al siguiente separador " | " si existe; si no, hasta fin
-        int rel = txtLower.indexOf(" | ", start);
-        int end = (rel >= 0) ? rel : notas.length();
-
-        return notas.substring(start, end).trim();
+    private static double dist(double lat1, double lon1, double lat2, double lon2) {
+        double R=6371.0;
+        double dLat=Math.toRadians(lat2-lat1), dLon=Math.toRadians(lon2-lon1);
+        double a = Math.sin(dLat/2)*Math.sin(dLat/2)
+                + Math.cos(Math.toRadians(lat1))*Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon/2)*Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    private static String firstNonEmpty(String... arr) {
-        if (arr == null) return null;
-        for (String s : arr) if (s != null && !s.trim().isEmpty()) return s.trim();
-        return null;
-    }
-
-    /** Mapea tipo de paquete → tamaño para compatibilidad de vehículo. */
-    private static String mapTamanoDesdeTipo(String tipoPaquete) {
-        if (tipoPaquete == null) return null;
-        String t = tipoPaquete.toLowerCase(Locale.ROOT);
-        if (t.contains("documento") || t.contains("sobre")) return "SOBRE";
-        if (t.contains("peque"))     return "PEQUENO";
-        if (t.contains("mediano"))   return "MEDIANO";
-        if (t.contains("grande"))    return "GRANDE";
-        if (t.contains("fragil") || t.contains("frágil")) return "MEDIANO";
-        return "MEDIANO";
+    private static String yyyymmdd(long ms){
+        return new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date(ms));
     }
 }

@@ -27,6 +27,23 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp" />
 
+        <!-- Debajo de tvRango -->
+        <!-- Debajo de tvEta -->
+        <TextView
+            android:id="@+id/tvUbicacion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ubicación: —"
+            android:layout_marginTop="2dp"/>
+
+        <TextView
+            android:id="@+id/tvEta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="ETA: —"
+            android:layout_marginTop="2dp"/>
+
+
         <!-- Origen (limpio) -->
         <TextView
             android:id="@+id/tvDireccion"

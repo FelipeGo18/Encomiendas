@@ -23,4 +23,9 @@ public class Recolector {
 
     public long createdAt;
     public Long updatedAt;
+
+    public Double lat;
+    public Double lon;
+    public Long lastSeenMillis; // cuando a
+
 }

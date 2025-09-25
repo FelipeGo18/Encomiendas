@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.data.Solicitud;
+import com.hfad.encomiendas.data.SolicitudDao;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -17,6 +18,11 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Adapter para el panel del remitente que muestra solicitudes con ETA.
+ * Nota: ahora el dataset es List<SolicitudDao.SolicitudConEta> (proyección con LEFT JOIN a eta_cache).
+ * El Listener se mantiene igual y te entrega la Solicitud original (item.s).
+ */
 public class SolicitudesAdapter extends RecyclerView.Adapter<SolicitudesAdapter.VH> {
 
     public interface Listener {
@@ -24,11 +30,12 @@ public class SolicitudesAdapter extends RecyclerView.Adapter<SolicitudesAdapter.
     }
 
     private final Listener listener;
-    private final List<Solicitud> data = new ArrayList<>();
+    private final List<SolicitudDao.SolicitudConEta> data = new ArrayList<>();
 
     public SolicitudesAdapter(Listener l) { this.listener = l; }
 
-    public void setData(List<Solicitud> list) {
+    /** Reemplaza tu setData(List<Solicitud>) por este que recibe la proyección con ETA */
+    public void setData(List<SolicitudDao.SolicitudConEta> list) {
         data.clear();
         if (list != null) data.addAll(list);
         notifyDataSetChanged();
@@ -43,13 +50,18 @@ public class SolicitudesAdapter extends RecyclerView.Adapter<SolicitudesAdapter.
 
     @Override
     public void onBindViewHolder(@NonNull VH h, int pos) {
-        Solicitud s = data.get(pos);
+        SolicitudDao.SolicitudConEta it = data.get(pos);
+        Solicitud s = it.s;
 
         String titulo = safe(s.guia) + "  •  " + safe(s.estado);
         h.tvTitulo.setText(titulo);
 
         String sub = formatRange(s.ventanaInicioMillis, s.ventanaFinMillis);
         h.tvSub.setText(sub);
+
+        // NUEVO: ETA (amigable). Si no hay, muestra —
+        String etaPretty = prettyEta(it.eta);
+        h.tvEta.setText("ETA: " + etaPretty);
 
         h.tvDir.setText(safe(s.direccion));
 
@@ -64,17 +76,18 @@ public class SolicitudesAdapter extends RecyclerView.Adapter<SolicitudesAdapter.
     @Override public int getItemCount() { return data.size(); }
 
     static class VH extends RecyclerView.ViewHolder {
-        TextView tvTitulo, tvSub, tvDir, tvDestino;
+        TextView tvTitulo, tvSub, tvEta, tvDir, tvDestino; // ← agregado tvEta
         VH(@NonNull View v) {
             super(v);
-            tvTitulo = v.findViewById(R.id.tvTitulo);
-            tvSub    = v.findViewById(R.id.tvSub);
-            tvDir    = v.findViewById(R.id.tvDir);
-            tvDestino= v.findViewById(R.id.tvDestino);
+            tvTitulo  = v.findViewById(R.id.tvTitulo);
+            tvSub     = v.findViewById(R.id.tvSub);
+            tvEta     = v.findViewById(R.id.tvEta);      // ← asegúrate de tener este id en el layout
+            tvDir     = v.findViewById(R.id.tvDir);
+            tvDestino = v.findViewById(R.id.tvDestino);
         }
     }
 
-    // -------
+    // ------- helpers (reusamos los tuyos) -------
     private static String formatRange(Long ini, Long fin) {
         if (ini == null || fin == null || ini == 0 || fin == 0) return "—";
         Calendar c = Calendar.getInstance();
@@ -102,4 +115,16 @@ public class SolicitudesAdapter extends RecyclerView.Adapter<SolicitudesAdapter.
 
     private static String safe(String s) { return isEmpty(s) ? "—" : s; }
     private static boolean isEmpty(String s) { return s == null || s.trim().isEmpty(); }
+
+    /** Formatea ISO-8601 a "HH:mm". Si no puede, devuelve el ISO tal cual. */
+    private static String prettyEta(String iso) {
+        if (isEmpty(iso)) return "—";
+        // Extract HH:mm sin depender de java.time
+        int t = iso.indexOf('T');
+        if (t >= 0 && iso.length() >= t + 6) {
+            // iso ej: 2025-09-20T18:45:00-05:00 → toma 18:45
+            return iso.substring(t + 1, t + 6);
+        }
+        return iso;
+    }
 }

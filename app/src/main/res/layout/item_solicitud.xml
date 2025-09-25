@@ -28,6 +28,13 @@
             android:layout_marginTop="2dp"/>
 
         <TextView
+            android:id="@+id/tvEta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="ETA: —"
+            android:layout_marginTop="2dp"/>
+
+        <TextView
             android:id="@+id/tvDir"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
