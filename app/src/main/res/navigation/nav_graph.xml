@@ -91,13 +91,13 @@
         <argument
             android:name="asignacionId"
             app:argType="integer" />
-    </fragment>
-
-    <fragment
-        android:id="@+id/homeDashboardFragment"
-        android:name="com.hfad.encomiendas.ui.HomeDashboardFragment"
-        android:label="Panel">
         <action
+            android:id="@+id/action_detalle_to_recoleccionMapa"
+            app:destination="@id/recoleccionMapaFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
             android:id="@+id/action_home_to_solicitar"
             app:destination="@id/solicitarRecoleccionFragment" />
     </fragment>
@@ -107,13 +107,13 @@
         android:name="com.hfad.encomiendas.ui.HubDashboardFragment"
         android:label="HUB"/>
 
-    <fragment
-        android:id="@+id/entregaFragment"
-        android:name="com.hfad.encomiendas.ui.EntregaFragment"
-        android:label="Entrega">
-        <argument android:name="manifiestoItemId" app:argType="integer"/>
-    </fragment>
-
+        <action
+            android:id="@+id/action_home_to_solicitudMapa"
+            app:destination="@id/solicitudMapaFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
     <fragment
         android:id="@+id/repartidorDashboardFragment"
         android:name="com.hfad.encomiendas.ui.RepartidorDashboardFragment"

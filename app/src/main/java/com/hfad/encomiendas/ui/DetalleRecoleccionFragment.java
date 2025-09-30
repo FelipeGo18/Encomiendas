@@ -2,19 +2,19 @@ package com.hfad.encomiendas.ui;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
+import android.location.LocationManager;
 import android.text.TextUtils;
-import android.util.Base64;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ImageView;
-import android.widget.TextView;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -28,33 +28,33 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
-import com.hfad.encomiendas.BuildConfig;
+
 import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.core.TrackingService;
-import com.hfad.encomiendas.data.AppDatabase;
+import androidx.navigation.fragment.NavHostFragment;
 import com.hfad.encomiendas.data.Asignacion;
 import com.hfad.encomiendas.data.AsignacionDao;
 import com.hfad.encomiendas.data.Solicitud;
 import com.hfad.encomiendas.ui.adapters.TrackingAdapter;
-import com.hfad.encomiendas.ui.widgets.SignatureView;
-
-import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-import java.util.concurrent.Executors;
-
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.location.Priority;
-
-public class DetalleRecoleccionFragment extends Fragment {
-
-    private static final String ARG_ID = "asignacionId";
-
-    private int asignacionId;
-
+import com.google.android.gms.maps.MapView;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
+import com.hfad.encomiendas.BuildConfig; // para MAPS_API_KEY
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
     // UI encabezado
     private TextView tvTitulo, tvSub, tvEstado;
 
@@ -62,7 +62,7 @@ public class DetalleRecoleccionFragment extends Fragment {
     private TextView tvEta;
     private RecyclerView rvTimeline;
     private TrackingAdapter trackingAdapter;
-    private TrackingService tracking;
+import com.hfad.encomiendas.data.TrackingEventDao; // para LastLoc
 
     // UI foto / firma
     private ImageView ivFoto;
@@ -101,21 +101,21 @@ public class DetalleRecoleccionFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_detalle_recoleccion, container, false);
-    }
+    // Mapa recolector
+    private MapView mapViewRecolector;
+    private GoogleMap googleMap;
+    private Marker markerRecolector;
+    private Marker markerDestino;
+    private Double lastRecolectorLat = null, lastRecolectorLon = null;
+    private Handler mapHandler = new Handler(Looper.getMainLooper());
+    private final long MAP_REFRESH_MS = 30_000; // 30s
+    private final Runnable mapRefreshTask = new Runnable() {
+        @Override public void run() {
+            cargarUltimaUbicacionRecolector(false);
+            mapHandler.postDelayed(this, MAP_REFRESH_MS);
+        }
+    };
 
-    @Override
-    public void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        asignacionId = getArguments() != null ? getArguments().getInt(ARG_ID, -1) : -1;
-
-        reqPermission = registerForActivityResult(
-                new ActivityResultContracts.RequestPermission(),
-                granted -> { if (granted) lanzarCamara(); else toast("Permiso de cámara denegado"); }
-        );
-
-        takePicture = registerForActivityResult(new ActivityResultContracts.TakePicture(), ok -> {
-            if (ok && pendingPhotoUri != null) {
-                ivFoto.setImageURI(pendingPhotoUri);
                 updatePhotoButtons();
             } else {
                 pendingPhotoUri = null;
@@ -138,21 +138,21 @@ public class DetalleRecoleccionFragment extends Fragment {
         tvEta = v.findViewById(R.id.tvEta);
         rvTimeline = v.findViewById(R.id.rvTimeline);
         if (rvTimeline != null) {
-            rvTimeline.setLayoutManager(new LinearLayoutManager(getContext()));
-            trackingAdapter = new TrackingAdapter();
-            rvTimeline.setAdapter(trackingAdapter);
-        }
-        tracking = new TrackingService(AppDatabase.getInstance(requireContext()));
-        fused = LocationServices.getFusedLocationProviderClient(requireContext());
+    // --- Ruta ---
+    private Polyline routePolyline;
+    private boolean routeRequested = false; // evita múltiples fetch seguidos
+    private Double routeFromLat = null, routeFromLon = null; // para detectar cambios
 
-        // Foto
-        ivFoto = v.findViewById(R.id.ivFoto);
-        btnTomarFoto      = v.findViewById(R.id.btnTomarFoto);
-        llEditarConfirmar = v.findViewById(R.id.llEditarConfirmar);
-        btnEditarFoto     = v.findViewById(R.id.btnEditarFoto);
-        btnConfirmarFoto  = v.findViewById(R.id.btnConfirmarFoto);
-        llSoloEditar      = v.findViewById(R.id.llSoloEditar);
-        btnSoloEditar     = v.findViewById(R.id.btnSoloEditar);
+    private static final double BOGOTA_LAT = 4.7110;
+    private static final double BOGOTA_LON = -74.0721;
+    private boolean initialCameraSet = false;
+
+    private ActivityResultLauncher<String> locationPermLauncher;
+    private ActivityResultLauncher<Intent> locationSettingsLauncher;
+    private ActivityResultLauncher<String> notifPermLauncher;
+    private Runnable pendingLocationAction; // se ejecuta tras obtener permisos y GPS activo
+
+    private boolean navigatingFullMap = false; // evita múltiples intents
 
         // Firma
         ivFirmaPreview  = v.findViewById(R.id.ivFirmaPreview);
@@ -182,39 +182,39 @@ public class DetalleRecoleccionFragment extends Fragment {
                 AsignacionDao.AsignacionDetalle d = db.asignacionDao().getDetalleById(asignacionId);
                 Asignacion a = db.asignacionDao().getById(asignacionId);
 
-                ordenRuta  = (d != null) ? d.ordenRuta : null;
-                estado     = (a != null && !TextUtils.isEmpty(a.estado)) ? a.estado : "—";
-                guiaActiva = (a != null && a.guiaActiva);
 
-                savedPhotoUri = (a != null) ? a.evidenciaFotoUri : null;
-                pendingPhotoUri = (savedPhotoUri == null) ? null : Uri.parse(savedPhotoUri);
-                firmaB64 = (a != null) ? a.firmaBase64 : null;
-
-                // Resolver solicitudId y (opcional) coords destino
-                solicitudId = -1;
-                if (a != null && a.solicitudId > 0) {
-                    solicitudId = a.solicitudId;
+        locationPermLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+            if (granted) {
+                if (!isLocationEnabled()) {
+                    promptEnableLocationServices();
                 } else {
-                    try {
-                        Solicitud sX = db.solicitudDao().byAsignacionId(asignacionId);
-                        if (sX != null) solicitudId = sX.id;
-                    } catch (Exception ignore) {}
+                    runPendingLocationAction();
                 }
-
-                Solicitud s = null;
-                if (solicitudId > 0) {
-                    s = db.solicitudDao().byId(solicitudId);
+            } else {
+                if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
+                    showRationaleUbicacion();
+                } else {
+                    showIrAjustesAppDialog();
                 }
-                if (s != null) {
-                    try { destinoLat = s.lat; destinoLon = s.lon; } catch (Throwable ignore) {}
+            }
+        });
+        locationSettingsLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), res -> {
+            // Al volver de ajustes GPS
+            if (isLocationEnabled()) runPendingLocationAction();
+            else toast("La ubicación sigue desactivada");
+        });
+        if (Build.VERSION.SDK_INT >= 33) {
+            notifPermLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                if (!granted && shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                    new AlertDialog.Builder(requireContext())
+                            .setTitle("Notificaciones")
+                            .setMessage("Necesitas habilitar notificaciones para recibir actualizaciones. ¿Intentar de nuevo?")
+                            .setPositiveButton("Solicitar", (d,w)-> notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS))
+                            .setNegativeButton("Ahora no", null)
+                            .show();
                 }
-
-                runOnUi(() -> {
-                    tvTitulo.setText("#" + asignacionId + " • " + estado);
-                    tvSub.setText("Orden: " + (ordenRuta == null ? "—" : ordenRuta));
-                    tvEstado.setText(guiaActiva ? "GUÍA ACTIVADA (RECOLECTADA)" : "");
-
-                    if (!TextUtils.isEmpty(savedPhotoUri)) {
+            });
+        }
                         try { ivFoto.setImageURI(Uri.parse(savedPhotoUri)); } catch (Exception ignore) {}
                     }
 
@@ -252,38 +252,38 @@ public class DetalleRecoleccionFragment extends Fragment {
     }
 
     private void lanzarCamara() {
-        try {
-            File dir = requireContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-            if (dir == null) dir = requireContext().getFilesDir();
-            String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-            File photo = new File(dir, "evid_" + asignacionId + "_" + ts + ".jpg");
-            if (!photo.exists()) photo.createNewFile();
-
-            pendingPhotoUri = FileProvider.getUriForFile(
-                    requireContext(),
-                    BuildConfig.APPLICATION_ID + ".fileprovider",
-                    photo
-            );
-            takePicture.launch(pendingPhotoUri);
-        } catch (IOException e) {
-            toast("No se pudo crear la foto: " + e.getMessage());
+        // Mapa recolector
+        mapViewRecolector = v.findViewById(R.id.map_recolector);
+        if (mapViewRecolector != null) {
+            mapViewRecolector.onCreate(savedInstanceState);
+            mapViewRecolector.getMapAsync(gMap -> {
+                googleMap = gMap;
+                // Mapa mini: sin gestos ni controles para evitar scroll accidental
+                googleMap.getUiSettings().setAllGesturesEnabled(false);
+                googleMap.getUiSettings().setZoomControlsEnabled(false);
+                googleMap.getUiSettings().setMapToolbarEnabled(false);
+                // Cámara inicial Bogotá
+                if (!initialCameraSet) {
+                    googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(BOGOTA_LAT, BOGOTA_LON), 11f));
+                    initialCameraSet = true;
+                }
+                if (lastRecolectorLat != null && lastRecolectorLon != null) {
+                    pintarMarcadores(true);
+                } else {
+                    cargarUltimaUbicacionRecolector(true);
+                    // Intentar obtener ubicación del dispositivo para trazar ruta temprana
+                    intentarUbicacionDispositivoComoRecolector();
+                }
+            });
+            // Listener sobre el propio MapView
+            mapViewRecolector.setOnClickListener(view -> openMapaCompleto());
         }
-    }
+        // Listener adicional sobre el contenedor para garantizar el click
+        View frameMapaMini = v.findViewById(R.id.frameMapaMini);
+        if (frameMapaMini != null) {
+            frameMapaMini.setOnClickListener(view -> openMapaCompleto());
+        }
 
-    private void onConfirmarFoto() {
-        if (pendingPhotoUri == null) { toast("Toma una foto primero"); return; }
-        savedPhotoUri = pendingPhotoUri.toString();
-
-        Executors.newSingleThreadExecutor().execute(() -> {
-            try {
-                AppDatabase.getInstance(requireContext())
-                        .asignacionDao().guardarFoto(asignacionId, savedPhotoUri);
-
-                runOnUi(() -> {
-                    toast("Foto confirmada");
-                    updatePhotoButtons();
-
-                    // Evento con ubicación (si hay permiso)
                     if (solicitudId > 0) {
                         logEventWithLocation(solicitudId, "EVIDENCE_PHOTO", "Foto confirmada",
                                 () -> tracking.loadEvents(solicitudId, evs -> {
@@ -295,36 +295,36 @@ public class DetalleRecoleccionFragment extends Fragment {
                 });
             } catch (Exception e) {
                 runOnUi(() -> toast("Error guardando foto: " + e.getMessage()));
-            }
-        });
+        ensureNotificationPermissionIfNeeded();
+
     }
 
     private void borrarFoto() {
-        if (guiaActiva) return;
-        pendingPhotoUri = null;
-        savedPhotoUri = null;
-        ivFoto.setImageDrawable(null);
-        Executors.newSingleThreadExecutor().execute(() -> {
+    private void openMapaCompleto() {
+        if (navigatingFullMap) return; // evitar doble click rápido
+        if (!isAdded()) return;
+        navigatingFullMap = true;
+        int id = asignacionId;
+        Toast.makeText(requireContext(), "Abriendo mapa (#"+id+")", Toast.LENGTH_SHORT).show();
+        Bundle args = new Bundle();
+        args.putInt("asignacionId", id);
+        try {
+            NavHostFragment.findNavController(this)
+                    .navigate(R.id.action_detalle_to_recoleccionMapa, args);
+        } catch (Exception primaryEx) {
             try {
-                AppDatabase.getInstance(requireContext())
-                        .asignacionDao().guardarFoto(asignacionId, null);
-            } catch (Exception ignore) {}
-        });
-        updatePhotoButtons();
+                // Fallback: navegar directo al destino si la acción falla
+                NavHostFragment.findNavController(this)
+                        .navigate(R.id.recoleccionMapaFragment, args);
+            } catch (Exception fallbackEx) {
+                navigatingFullMap = false;
+                Toast.makeText(requireContext(), "No se pudo navegar: "+ fallbackEx.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
+        // Liberar el flag tras un breve retraso por seguridad
+        mapHandler.postDelayed(() -> navigatingFullMap = false, 1200);
     }
 
-    private void updatePhotoButtons() {
-        boolean hayPendiente = (pendingPhotoUri != null) &&
-                (savedPhotoUri == null || !pendingPhotoUri.toString().equals(savedPhotoUri));
-        boolean hayConfirmada = !TextUtils.isEmpty(savedPhotoUri);
-
-        btnTomarFoto.setVisibility((!hayPendiente && !hayConfirmada) ? View.VISIBLE : View.GONE);
-        llEditarConfirmar.setVisibility(hayPendiente ? View.VISIBLE : View.GONE);
-        llSoloEditar.setVisibility((!hayPendiente && hayConfirmada) ? View.VISIBLE : View.GONE);
-    }
-
-    private void showPreview() {
-        Uri toShow = (pendingPhotoUri != null) ? pendingPhotoUri :
                 (!TextUtils.isEmpty(savedPhotoUri) ? Uri.parse(savedPhotoUri) : null);
         if (toShow == null) return;
 
@@ -388,8 +388,8 @@ public class DetalleRecoleccionFragment extends Fragment {
                 boolean hayFirma = (a != null && !TextUtils.isEmpty(a.firmaBase64));
                 if (hayFoto && hayFirma && (a != null) && !a.guiaActiva) {
                     runOnUi(() -> new AlertDialog.Builder(requireContext())
-                            .setTitle("Activar guía")
-                            .setMessage("Se detectó foto y firma. ¿Activar guía y marcar RECOLECTADA?")
+            // tras refrescar timeline, refrescamos ubicación (puede haber nuevo evento con lat/lon)
+            cargarUltimaUbicacionRecolector(false);
                             .setNegativeButton("No", null)
                             .setPositiveButton("Sí", (d,w) -> Executors.newSingleThreadExecutor().execute(() -> {
                                 db.asignacionDao().activarGuia(asignacionId);
@@ -414,7 +414,7 @@ public class DetalleRecoleccionFragment extends Fragment {
                                         } catch (Exception ignore) {}
                                     }
                                 }
-
+                    requireContext().getPackageName() + ".fileprovider",
                                 if (sid > 0) {
                                     // Evento con ubicación
                                     logEventWithLocation(sid, "PICKED_UP", "Guía activada y recolectada", null);

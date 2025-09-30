@@ -1,10 +1,15 @@
 package com.hfad.encomiendas.ui;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -25,8 +30,8 @@ import com.hfad.encomiendas.data.Solicitud;
 import com.hfad.encomiendas.data.SolicitudDao;
 import com.hfad.encomiendas.data.TrackingEventDao;
 
-import java.text.Normalizer;
-import java.text.SimpleDateFormat;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashSet;
@@ -45,6 +50,7 @@ public class HomeDashboardFragment extends Fragment {
     private MaterialButton btnCrear;
 
     private UltimasAdapter adapter;
+    private NavController navController; // cache
 
     @Nullable
     @Override
@@ -82,74 +88,62 @@ public class HomeDashboardFragment extends Fragment {
             });
         }
 
+        navController = NavHostFragment.findNavController(this);
         cargarPanel();
-    }
-
-    private void cargarPanel() {
-        if (swRefresh != null) swRefresh.setRefreshing(true);
-        Executors.newSingleThreadExecutor().execute(() -> {
-            try {
-                AppDatabase db = AppDatabase.getInstance(requireContext());
-                SessionManager sm = new SessionManager(requireContext());
-                String email = sm.getEmail();
-                if (TextUtils.isEmpty(email)) {
-                    runOnUi(() -> {
-                        if (swRefresh != null) swRefresh.setRefreshing(false);
-                        Toast.makeText(requireContext(), "Sesión no válida", Toast.LENGTH_SHORT).show();
-                    });
-                    return;
-                }
-                com.hfad.encomiendas.data.User u = db.userDao().findByEmail(email);
-                if (u == null) {
-                    runOnUi(() -> {
-                        if (swRefresh != null) swRefresh.setRefreshing(false);
-                        Toast.makeText(requireContext(), "Usuario no encontrado", Toast.LENGTH_SHORT).show();
-                    });
-                    return;
-                }
-
-                int cPend = db.solicitudDao().countByEstado(u.id, "PENDIENTE");
-                int cAsig = db.solicitudDao().countByEstado(u.id, "ASIGNADA");
-                int cReco = db.solicitudDao().countByEstado(u.id, "RECOLECTADA");
-
-                List<SolicitudDao.SolicitudConEta> ultimas =
-                        db.solicitudDao().listAllByUserWithEta(u.id, 20);
-
-                runOnUi(() -> {
-                    tvCountPendientes.setText(String.valueOf(cPend));
-                    tvCountAsignadas.setText(String.valueOf(cAsig));
-                    tvCountRecolectadas.setText(String.valueOf(cReco));
-
-                    adapter.setData(ultimas == null ? new ArrayList<>() : ultimas);
-                    tvEmpty.setVisibility(adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
-                    if (swRefresh != null) swRefresh.setRefreshing(false);
-                });
-
-            } catch (Exception e) {
-                runOnUi(() -> {
-                    if (swRefresh != null) swRefresh.setRefreshing(false);
-                    Toast.makeText(requireContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
-            }
-        });
     }
 
     /* ==================== Adapter ==================== */
 
     private static class UltimasAdapter extends RecyclerView.Adapter<VH> {
         private final List<SolicitudDao.SolicitudConEta> data = new ArrayList<>();
-        private final SimpleDateFormat dfFecha = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-        private final SimpleDateFormat dfHora  = new SimpleDateFormat("h:mm a", Locale.getDefault());
+        private final java.text.SimpleDateFormat dfFecha = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+        private final java.text.SimpleDateFormat dfHora  = new java.text.SimpleDateFormat("h:mm a", Locale.getDefault());
         private final AppDatabase db;
+        private final List<LocationCache> locCache = new ArrayList<>();
+        private final Handler ui = new Handler(Looper.getMainLooper());
+        private static final String MAPS_KEY = ""; // Rellena si deseas snapshots
+
+        static class LocationCache { long solicitudId; Double lat; Double lon; String whenIso; }
 
         UltimasAdapter(AppDatabase db) { this.db = db; }
 
         void setData(List<SolicitudDao.SolicitudConEta> list) {
-            data.clear();
-            if (list != null) data.addAll(list);
-            notifyDataSetChanged();
+            boolean same = (list!=null && list.size()==data.size());
+            if (same) {
+                for (int i=0;i<list.size();i++) if (data.get(i).s.id != list.get(i).s.id) { same = false; break; }
+            }
+            if (!same) {
+                data.clear(); if (list!=null) data.addAll(list); notifyDataSetChanged();
+            } else {
+                for (int i=0;i<list.size();i++) data.set(i, list.get(i));
+                notifyItemRangeChanged(0, data.size());
+            }
+            rebuildLocCacheIds();
+        }
+        private void rebuildLocCacheIds(){
+            locCache.clear();
+            for (SolicitudDao.SolicitudConEta it: data){ LocationCache c = new LocationCache(); c.solicitudId = it.s.id; locCache.add(c);} }
+
+        void refreshLocationsAsync() {
+            Executors.newSingleThreadExecutor().execute(() -> {
+                for (LocationCache c: locCache) {
+                    TrackingEventDao.LastLoc loc = db.trackingEventDao().lastLocationForShipment(c.solicitudId);
+                    if (loc!=null) { c.lat=loc.lat; c.lon=loc.lon; c.whenIso=loc.whenIso; }
+                }
+                // actualizar visible
+                if (!data.isEmpty()) {
+                    // post a la UI
+                    if (!rvRef.get().isAttachedToWindow()) return; // best-effort
+                    rvRef.get().post(this::notifyDataSetChanged);
+                }
+            });
         }
 
+        // referencia débil al RecyclerView para post (configurada en onAttachedToRecyclerView)
+        private java.lang.ref.WeakReference<RecyclerView> rvRef = new java.lang.ref.WeakReference<>(null);
+        @Override public void onAttachedToRecyclerView(@NonNull RecyclerView rv){ super.onAttachedToRecyclerView(rv); rvRef = new java.lang.ref.WeakReference<>(rv);}
+
+        private LocationCache findCache(long id){ for (LocationCache c: locCache) if (c.solicitudId==id) return c; return null; }
         @NonNull @Override public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View v = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.item_solicitud_dashboard, parent, false);
@@ -174,20 +168,33 @@ public class HomeDashboardFragment extends Fragment {
             String destino = firstNonEmpty(meta(s.notas, "DestinoDir"), meta(s.notas, "Destino"));
             h.tvDestino.setText("Destino: " + nn(destino));
 
-            h.tvUbicacion.setText("Ubicación: —");
-            long sid = s.id;
-            Executors.newSingleThreadExecutor().execute(() -> {
-                TrackingEventDao.LastLoc loc = db.trackingEventDao().lastLocationForShipment(sid);
-                String txt = "—";
-                if (loc != null && loc.lat != null && loc.lon != null) {
-                    txt = String.format(Locale.getDefault(), "%.5f, %.5f", loc.lat, loc.lon);
-                }
-                final String fin = "Ubicación: " + txt;
-                h.itemView.post(() -> h.tvUbicacion.setText(fin));
-            });
+            h.itemView.setOnClickListener(v -> { if (cb != null) cb.openMapa(s.id); });
+
+            LocationCache lc = findCache(s.id);
+            if (lc==null || lc.lat==null) {
+                h.tvUbicacion.setText("Ubicación: —");
+                h.loadSnapshot(null, null, null, MAPS_KEY);
+                Executors.newSingleThreadExecutor().execute(() -> {
+                    TrackingEventDao.LastLoc loc = db.trackingEventDao().lastLocationForShipment(s.id);
+                    if (loc!=null){
+                        if (lc!=null){ lc.lat=loc.lat; lc.lon=loc.lon; lc.whenIso=loc.whenIso; }
+                        h.itemView.post(() -> {
+                            h.tvUbicacion.setText(formatUbicacion(loc.lat, loc.lon, loc.whenIso));
+                            h.loadSnapshot(loc.lat, loc.lon, null, MAPS_KEY);
+                        });
+                    }
+                });
+            } else {
+                h.tvUbicacion.setText(formatUbicacion(lc.lat, lc.lon, lc.whenIso));
+                h.loadSnapshot(lc.lat, lc.lon, null, MAPS_KEY);
+            }
         }
 
-        @Override public int getItemCount() { return data.size(); }
+        private String formatUbicacion(Double lat, Double lon, String whenIso){
+            if (lat==null||lon==null) return "Ubicación: —";
+            String delta = formatDelta(whenIso);
+            return String.format(Locale.getDefault(), "Ubicación: %.5f, %.5f%s", lat, lon, delta.isEmpty()?"":" ("+delta+")");
+        }
 
         private static String nn(String s) { return (s == null || s.trim().isEmpty()) ? "—" : s.trim(); }
 
@@ -222,7 +229,7 @@ public class HomeDashboardFragment extends Fragment {
             for (String p : parts) {
                 String t = p.trim();
                 if (t.isEmpty()) continue;
-                String canon = Normalizer.normalize(t, Normalizer.Form.NFD)
+                String canon = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD)
                         .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
                         .replaceAll("[^a-zA-Z\\s]", "")
                         .toLowerCase(Locale.ROOT)
@@ -244,10 +251,36 @@ public class HomeDashboardFragment extends Fragment {
             if (t >= 0 && iso.length() >= t + 6) return iso.substring(t + 1, t + 6);
             return iso;
         }
+
+        private static String formatDelta(String iso){
+            if (iso == null) return "";
+            try {
+                // intento parse simple
+                String base = iso.replace('Z',' ').trim();
+                // soporta formato con zona: tomamos primeros 19 caracteres yyyy-MM-ddTHH:mm:ss
+                if (base.length() >= 19) base = base.substring(0,19);
+                java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
+                long t = f.parse(base).getTime();
+                long now = System.currentTimeMillis();
+                long diff = Math.max(0, now - t);
+                long mins = diff / 60000L;
+                if (mins < 1) return "hace instantes";
+                if (mins < 60) return "hace " + mins + " min";
+                long hrs = mins / 60; if (hrs < 24) return "hace " + hrs + " h";
+                long dias = hrs / 24; return "hace " + dias + " d";
+            } catch (Exception ignore) {}
+            return "";
+        }
+
+        interface ItemClick { void openMapa(long solicitudId); }
+        private ItemClick cb;
+        void setOnItemClick(ItemClick cb){ this.cb = cb; }
+        @Override public int getItemCount(){ return data.size(); }
     }
 
     private static class VH extends RecyclerView.ViewHolder {
         TextView tvGuiaEstado, tvRango, tvEta, tvDireccion, tvDestino, tvUbicacion;
+        ImageView ivMap;
         VH(@NonNull View itemView) {
             super(itemView);
             tvGuiaEstado = itemView.findViewById(R.id.tvGuiaEstado);
@@ -256,6 +289,100 @@ public class HomeDashboardFragment extends Fragment {
             tvDireccion  = itemView.findViewById(R.id.tvDireccion);
             tvDestino    = itemView.findViewById(R.id.tvDestino);
             tvUbicacion  = itemView.findViewById(R.id.tvUbicacion);
+            ivMap        = itemView.findViewById(R.id.ivMapPreview);
+        }
+        void loadSnapshot(Double lat, Double lon, Double destLat, String key) {
+            if (ivMap==null) return;
+            if (lat==null || lon==null || key==null || key.isEmpty()) {
+                ivMap.setImageResource(R.drawable.ic_launcher_background);
+                return;
+            }
+            StringBuilder url = new StringBuilder("https://maps.googleapis.com/maps/api/staticmap?");
+            url.append("center=").append(lat).append(",").append(lon)
+               .append("&zoom=13&size=400x200&scale=2&maptype=roadmap")
+               .append("&markers=color:blue%7C").append(lat).append(",").append(lon);
+            // destino opcional no implementado (sin destLon real)
+            url.append("&key=").append(key);
+            new Thread(() -> {
+                try (InputStream is = new URL(url.toString()).openStream()) {
+                    Bitmap bmp = BitmapFactory.decodeStream(is);
+                    ivMap.post(() -> ivMap.setImageBitmap(bmp));
+                } catch (Exception ignore) {}
+            }).start();
+        }
+    }
+
+    // Exponer método para configurar callback tras cargar panel
+    private void prepararClicks() {
+        if (adapter != null) adapter.setOnItemClick(sid -> {
+            if (navController != null) {
+                try {
+                    Bundle b = new Bundle(); b.putLong("solicitudId", sid);
+                    navController.navigate(R.id.action_home_to_solicitudMapa, b);
+                } catch (Exception ignored) {}
+            }
+        });
+    }
+
+    private void cargarPanel() {
+        if (swRefresh != null) swRefresh.setRefreshing(true);
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(requireContext());
+                SessionManager sm = new SessionManager(requireContext());
+                String email = sm.getEmail();
+                if (TextUtils.isEmpty(email)) {
+                    runOnUi(() -> {
+                        if (swRefresh != null) swRefresh.setRefreshing(false);
+                        Toast.makeText(requireContext(), "Sesión no válida", Toast.LENGTH_SHORT).show();
+                    });
+                    return;
+                }
+                com.hfad.encomiendas.data.User u = db.userDao().findByEmail(email);
+                if (u == null) {
+                    runOnUi(() -> {
+                        if (swRefresh != null) swRefresh.setRefreshing(false);
+                        Toast.makeText(requireContext(), "Usuario no encontrado", Toast.LENGTH_SHORT).show();
+                    });
+                    return;
+                }
+
+                int cPend = db.solicitudDao().countByEstado(u.id, "PENDIENTE");
+                int cAsig = db.solicitudDao().countByEstado(u.id, "ASIGNADA");
+                int cReco = db.solicitudDao().countByEstado(u.id, "RECOLECTADA");
+
+                List<SolicitudDao.SolicitudConEta> ultimas = db.solicitudDao().listAllByUserWithEta(u.id, 20);
+
+                runOnUi(() -> {
+                    tvCountPendientes.setText(String.valueOf(cPend));
+                    tvCountAsignadas.setText(String.valueOf(cAsig));
+                    tvCountRecolectadas.setText(String.valueOf(cReco));
+
+                    adapter.setData(ultimas);
+                    adapter.refreshLocationsAsync();
+                    tvEmpty.setVisibility(adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
+                    if (swRefresh != null) swRefresh.setRefreshing(false);
+                    prepararClicks();
+                });
+
+            } catch (Exception e) {
+                runOnUi(() -> {
+                    if (swRefresh != null) swRefresh.setRefreshing(false);
+                    Toast.makeText(requireContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    // Optimizar MapView en reciclado
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (rvSolicitudes != null) {
+            RecyclerView.Adapter a = rvSolicitudes.getAdapter();
+            if (a instanceof UltimasAdapter) {
+                // no acceso directo a los holders ya reciclados; rely en GC
+            }
         }
     }
 
