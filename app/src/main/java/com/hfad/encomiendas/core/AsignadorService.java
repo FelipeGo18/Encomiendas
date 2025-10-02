@@ -146,6 +146,26 @@ public class AsignadorService {
         com.hfad.encomiendas.core.NotificationHelper.notifyRecolector(
                 context, fRecolectorId, zona, fFecha, nInserted[0]
         );
+
+        // INICIAR TRACKING CONTINUO DEL RECOLECTOR
+        // Esto garantiza que la ubicación del recolector se actualice continuamente
+        // mientras tiene solicitudes asignadas
+        android.util.Log.d("ASIG", "Iniciando tracking continuo para recolector: " + fRecolectorId);
+        android.content.Intent trackingIntent = new android.content.Intent(context, com.hfad.encomiendas.core.TrackingForegroundService.class);
+        trackingIntent.setAction(com.hfad.encomiendas.core.TrackingForegroundService.ACTION_START);
+        trackingIntent.putExtra("recolectorId", fRecolectorId);
+
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(trackingIntent);
+            } else {
+                context.startService(trackingIntent);
+            }
+            android.util.Log.d("ASIG", "✓ Tracking continuo iniciado exitosamente para recolector " + fRecolectorId);
+        } catch (Exception e) {
+            android.util.Log.e("ASIG", "Error iniciando tracking continuo para recolector " + fRecolectorId, e);
+        }
+
         return nInserted[0];
     }
 
@@ -241,6 +261,26 @@ public class AsignadorService {
                     inserted[0]
             );
         }
+
+        // INICIAR TRACKING CONTINUO DEL RECOLECTOR (igual que en el otro método)
+        if (inserted[0] > 0) {
+            android.util.Log.d("ASIG", "Iniciando tracking continuo para recolector (ruta ordenada): " + fRecolector);
+            android.content.Intent trackingIntent = new android.content.Intent(context, com.hfad.encomiendas.core.TrackingForegroundService.class);
+            trackingIntent.setAction(com.hfad.encomiendas.core.TrackingForegroundService.ACTION_START);
+            trackingIntent.putExtra("recolectorId", fRecolector);
+
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(trackingIntent);
+                } else {
+                    context.startService(trackingIntent);
+                }
+                android.util.Log.d("ASIG", "✓ Tracking continuo iniciado exitosamente para recolector (ruta ordenada) " + fRecolector);
+            } catch (Exception e) {
+                android.util.Log.e("ASIG", "Error iniciando tracking continuo para recolector (ruta ordenada) " + fRecolector, e);
+            }
+        }
+
         return inserted[0];
     }
 

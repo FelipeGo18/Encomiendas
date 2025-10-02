@@ -41,6 +41,9 @@ public interface SolicitudDao {
     @Query("UPDATE Solicitud SET estado='RECOLECTADA' WHERE id=:id")
     void marcarRecolectada(long id);
 
+    // NUEVO: Listar solicitudes por recolector y estado (para TrackingForegroundService)
+    @Query("SELECT * FROM Solicitud WHERE recolectorId=:recolectorId AND estado=:estado ORDER BY ventanaInicioMillis ASC")
+    List<Solicitud> listByRecolectorAndEstado(int recolectorId, String estado);
 
     // Listar por fecha (YYYY-MM-DD)
     @Query("SELECT * FROM Solicitud " +

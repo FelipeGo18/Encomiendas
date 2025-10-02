@@ -49,7 +49,41 @@ public class TrackingForegroundService extends Service {
                 double lon = result.getLastLocation().getLongitude();
                 long ts = System.currentTimeMillis();
                 io.execute(() -> {
-                    try { AppDatabase.getInstance(getApplicationContext()).recolectorDao().updateLocation(recolectorId, lat, lon, ts); } catch (Exception ignore) {}
+                    try {
+                        AppDatabase db = AppDatabase.getInstance(getApplicationContext());
+
+                        // 1. Actualizar tabla Recolector (como antes)
+                        db.recolectorDao().updateLocation(recolectorId, lat, lon, ts);
+
+                        // 2. NUEVO: Crear TrackingEvents para todas las solicitudes ASIGNADAS de este recolector
+                        // Esto es lo que hace que funcione igual que cuando está RECOLECTADA
+                        java.util.List<com.hfad.encomiendas.data.Solicitud> solicitudesAsignadas =
+                            db.solicitudDao().listByRecolectorAndEstado(recolectorId, "ASIGNADA");
+
+                        if (solicitudesAsignadas != null && !solicitudesAsignadas.isEmpty()) {
+                            android.util.Log.d("TrackingService", "Creando tracking events para " + solicitudesAsignadas.size() +
+                                " solicitudes asignadas del recolector " + recolectorId + " en " + lat + "," + lon);
+
+                            for (com.hfad.encomiendas.data.Solicitud solicitud : solicitudesAsignadas) {
+                                // Crear TrackingEvent con la ubicación GPS real del recolector
+                                com.hfad.encomiendas.data.TrackingEvent trackingEvent = new com.hfad.encomiendas.data.TrackingEvent();
+                                trackingEvent.shipmentId = solicitud.id;
+                                trackingEvent.lat = lat;
+                                trackingEvent.lon = lon;
+                                trackingEvent.type = "EN_RUTA";
+                                trackingEvent.detail = "Recolector en camino - ubicación actualizada";
+                                trackingEvent.occurredAt = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.getDefault())
+                                        .format(new java.util.Date(ts));
+
+                                db.trackingEventDao().insert(trackingEvent);
+                            }
+
+                            android.util.Log.d("TrackingService", "✓ Tracking events creados exitosamente para recolector " + recolectorId);
+                        }
+
+                    } catch (Exception e) {
+                        android.util.Log.e("TrackingService", "Error actualizando ubicación y tracking", e);
+                    }
                 });
             }
         };
@@ -106,4 +140,3 @@ public class TrackingForegroundService extends Service {
 
     @Nullable @Override public IBinder onBind(Intent intent) { return null; }
 }
-
