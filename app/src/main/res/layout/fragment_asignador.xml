@@ -29,6 +29,13 @@
             android:text="Resumen" />
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGestionZonas"
+            android:text="Gestionar zonas"
+            android:layout_marginTop="8dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnCargarDemo"
             android:text="Cargar demo (hoy)"
             android:layout_marginTop="8dp"

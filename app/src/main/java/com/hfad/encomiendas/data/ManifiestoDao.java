@@ -78,4 +78,12 @@ public interface ManifiestoDao {
     // Devuelve el último manifiesto en estado ABIERTO (por fecha)
     @Query("SELECT * FROM manifiestos WHERE estado='ABIERTO' ORDER BY fechaMillis DESC LIMIT 1")
     Manifiesto getUltimoAbierto();
+
+    // Inserción batch de items
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    List<Long> insertItems(List<ManifiestoItem> items);
+
+    // Cuenta manifiestos por código
+    @Query("SELECT COUNT(*) FROM manifiestos WHERE codigo = :codigo")
+    int countByCodigo(String codigo);
 }

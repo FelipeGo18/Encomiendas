@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@android:color/white">
+
+    <TextView
+        android:id="@+id/tvZoneName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textStyle="bold"
+        android:text="Nombre zona" />
+
+    <TextView
+        android:id="@+id/tvZoneInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="info" />
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp">
+        <TextView
+            android:id="@+id/btnEditZone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Editar"
+            android:textColor="@android:color/holo_blue_dark"
+            android:padding="4dp"/>
+        <TextView
+            android:id="@+id/btnPolygonZone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Polígono"
+            android:textColor="@android:color/holo_purple"
+            android:padding="4dp"/>
+        <TextView
+            android:id="@+id/btnOpenZone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Abrir"
+            android:textColor="@android:color/holo_green_dark"
+            android:padding="4dp"/>
+        <TextView
+            android:id="@+id/btnDeleteZone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Eliminar"
+            android:textColor="@android:color/holo_red_dark"
+            android:padding="4dp"/>
+    </LinearLayout>
+
+</LinearLayout>

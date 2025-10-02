@@ -9,6 +9,9 @@
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground">
+
+    <LinearLayout
+        android:orientation="vertical"
         android:padding="12dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -27,8 +30,6 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp" />
 
-        <!-- Debajo de tvRango -->
-        <!-- Debajo de tvEta -->
         <TextView
             android:id="@+id/tvUbicacion"
             android:layout_width="match_parent"
@@ -42,7 +43,6 @@
             android:layout_height="wrap_content"
             android:text="ETA: —"
             android:layout_marginTop="2dp"/>
-
 
         <!-- Origen (limpio) -->
         <TextView
@@ -58,9 +58,6 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp" />
 
-    </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
-
         <!-- Snapshot estático del mapa -->
         <ImageView
             android:id="@+id/ivMapPreview"
@@ -69,3 +66,6 @@
             android:layout_marginTop="8dp"
             android:scaleType="centerCrop"
             android:contentDescription="Mapa"/>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -23,6 +23,7 @@ import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Recolector;
 import com.hfad.encomiendas.data.AsignacionDao;
 import com.hfad.encomiendas.data.SolicitudDao;
+import com.hfad.encomiendas.data.Zone;
 import com.hfad.encomiendas.ui.adapters.ZonaStatAdapter;
 
 import java.text.SimpleDateFormat;
@@ -32,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class AsignadorFragment extends Fragment {
@@ -40,6 +42,7 @@ public class AsignadorFragment extends Fragment {
     private TextView tvResumen;
     private RecyclerView rvZonas;
     private ZonaStatAdapter zonasAdapter;
+    private final ExecutorService io = Executors.newSingleThreadExecutor();
 
     public AsignadorFragment() {}
 
@@ -59,11 +62,20 @@ public class AsignadorFragment extends Fragment {
         rvZonas.setLayoutManager(new LinearLayoutManager(requireContext()));
         zonasAdapter = new ZonaStatAdapter(new ZonaStatAdapter.Listener() {
             @Override public void onItemClick(ZonaStatAdapter.ZonaItem item) {
-                Bundle b = new Bundle();
-                b.putString("fecha", textOf(etFecha));
-                b.putString("zona", item.zona);
-                androidx.navigation.Navigation.findNavController(requireView())
-                        .navigate(R.id.zonaDetalleFragment, b);
+                final String fechaSel = textOf(etFecha);
+                // Resolver zoneId en background antes de navegar
+                io.execute(() -> {
+                    long zoneId = resolveZoneId(item.zona);
+                    Bundle b = new Bundle();
+                    b.putString("fecha", fechaSel);
+                    b.putString("zona", item.zona);
+                    b.putInt("zoneId", (int) zoneId);
+                    runOnUi(() -> {
+                        if (!isAdded()) return;
+                        androidx.navigation.Navigation.findNavController(requireView())
+                                .navigate(R.id.zonaDetalleFragment, b);
+                    });
+                });
             }
             @Override public void onAsignarZona(ZonaStatAdapter.ZonaItem item) { asignarZona(item.zona); }
         });
@@ -75,7 +87,32 @@ public class AsignadorFragment extends Fragment {
         MaterialButton btnCargarDemo = view.findViewById(R.id.btnCargarDemo);
         if (btnCargarDemo != null) btnCargarDemo.setOnClickListener(v -> cargarDemoParaFecha(textOf(etFecha)));
 
+        MaterialButton btnGestionZonas = view.findViewById(R.id.btnGestionZonas);
+        if (btnGestionZonas != null) btnGestionZonas.setOnClickListener(v ->
+                androidx.navigation.Navigation.findNavController(requireView())
+                        .navigate(R.id.action_asignador_to_gestionZonas)
+        );
+
         refrescarResumenYMapa(textOf(etFecha));
+    }
+
+    private long resolveZoneId(String nombreZona) {
+        try {
+            if (TextUtils.isEmpty(nombreZona)) return -1;
+            AppDatabase db = AppDatabase.getInstance(requireContext());
+            Zone z = db.zoneDao().getByNombre(nombreZona.trim());
+            if (z != null) return z.id;
+            // Búsqueda tolerante por case / espacios
+            List<Zone> todas = db.zoneDao().listActivas();
+            if (todas != null) {
+                for (Zone zz : todas) {
+                    if (zz.nombre != null && zz.nombre.trim().equalsIgnoreCase(nombreZona.trim())) {
+                        return zz.id;
+                    }
+                }
+            }
+        } catch (Exception ignore) {}
+        return -1;
     }
 
     private void asignarZona(String zona) {
@@ -84,35 +121,36 @@ public class AsignadorFragment extends Fragment {
             toast("Fecha/zona inválida");
             return;
         }
-        Executors.newSingleThreadExecutor().execute(() -> {
+        io.execute(() -> {
             com.hfad.encomiendas.core.AsignadorService svc =
                     new com.hfad.encomiendas.core.AsignadorService(requireContext());
             int n = svc.generarRutasParaFechaZona(fecha, zona);
-
+            long zoneId = resolveZoneId(zona);
             runOnUi(() -> {
                 toast("Asignadas " + n + " en " + zona);
                 refrescarResumenYMapa(fecha);
-
                 // Ir directo al detalle para ver la ruta trazada:
                 Bundle b = new Bundle();
                 b.putString("fecha", fecha);
                 b.putString("zona", zona);
-                androidx.navigation.Navigation.findNavController(requireView())
-                        .navigate(R.id.zonaDetalleFragment, b);
+                b.putInt("zoneId", (int) zoneId);
+                if (isAdded()) {
+                    androidx.navigation.Navigation.findNavController(requireView())
+                            .navigate(R.id.zonaDetalleFragment, b);
+                }
             });
         });
     }
 
-
     private void cargarDemoParaFecha(String fecha) {
-        Executors.newSingleThreadExecutor().execute(() -> {
+        io.execute(() -> {
             com.hfad.encomiendas.core.DemoSeeder.seedOnce(requireContext());
             runOnUi(() -> { toast("Demo cargada"); refrescarResumenYMapa(fecha); });
         });
     }
 
     private void refrescarResumenYMapa(String fecha) {
-        Executors.newSingleThreadExecutor().execute(() -> {
+        io.execute(() -> {
             AppDatabase db = AppDatabase.getInstance(requireContext());
 
             int pendientes = db.solicitudDao().countUnassignedByFecha(fecha);
@@ -132,7 +170,6 @@ public class AsignadorFragment extends Fragment {
             }
             String txtResumen = sb.toString();
 
-            // construir mapa zona -> item (asignadas / pendientes)
             List<AsignacionDao.ZonaAsignada> listA = db.asignacionDao().countAsignadasPorZona(fecha);
             List<SolicitudDao.ZonaPendiente> listP = db.solicitudDao().countPendientesPorZona(fecha);
 
@@ -153,7 +190,6 @@ public class AsignadorFragment extends Fragment {
                 }
             }
 
-            // previews: 3 pendientes por zona
             List<ZonaStatAdapter.ZonaItem> items = new ArrayList<>(map.values());
             for (ZonaStatAdapter.ZonaItem it : items) {
                 List<SolicitudDao.PendienteDetalle> prev =
@@ -169,7 +205,6 @@ public class AsignadorFragment extends Fragment {
                 it.preview = pv.toString().trim();
             }
 
-            // ordenar por mayor pendiente primero
             items.sort((o1, o2) -> Integer.compare(o2.pendientes, o1.pendientes));
 
             runOnUi(() -> {

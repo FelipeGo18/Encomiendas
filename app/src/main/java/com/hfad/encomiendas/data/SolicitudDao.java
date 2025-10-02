@@ -139,6 +139,15 @@ public interface SolicitudDao {
             "ORDER BY s.ventanaInicioMillis ASC")
     List<Solicitud> listUnassignedByFechaZona(String fecha, String zona);
 
+    // NUEVO: Pendientes sin asignación sólo por fecha (sin inferir 'zona' de notas)
+    @Query("SELECT s.* FROM Solicitud s " +
+            "LEFT JOIN asignaciones a ON a.solicitudId = s.id " +
+            "WHERE s.estado='PENDIENTE' " +
+            "AND date(s.ventanaInicioMillis/1000,'unixepoch','localtime') = :fecha " +
+            "AND a.id IS NULL " +
+            "ORDER BY s.ventanaInicioMillis ASC")
+    List<Solicitud> listUnassignedByFecha(String fecha);
+
     @Query("SELECT COUNT(*) FROM Solicitud WHERE remitenteId=:uid AND estado=:estado")
     int countByEstado(long uid, String estado);
 

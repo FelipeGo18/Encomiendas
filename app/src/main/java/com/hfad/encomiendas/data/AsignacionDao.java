@@ -4,6 +4,7 @@ import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
+import androidx.room.RoomWarnings; // añadido
 
 import java.util.List;
 
@@ -16,6 +17,10 @@ public interface AsignacionDao {
 
     @Query("SELECT * FROM asignaciones WHERE id = :id LIMIT 1")
     Asignacion getById(int id);
+
+    // NUEVO: Método para obtener asignación por solicitudId
+    @Query("SELECT * FROM asignaciones WHERE solicitudId = :solicitudId LIMIT 1")
+    Asignacion getBySolicitudId(long solicitudId);
 
     @Query("SELECT * FROM asignaciones " +
             "WHERE recolectorId = :recolectorId AND fecha = :fecha " +
@@ -197,10 +202,12 @@ ORDER BY a.ordenRuta ASC
             "JOIN recolectores r ON r.id = a.recolectorId " +
             "WHERE a.fecha = :fecha AND r.zona = :zona " +
             "ORDER BY a.ordenRuta ASC")
+    @SuppressWarnings(RoomWarnings.CURSOR_MISMATCH)
     List<AsignacionDetalle> listDetalleByFechaZona(String fecha, String zona);
 
 
     // -------- Detalle por ID (opcional, si lo usas en otra pantalla) --------
+    @SuppressWarnings(RoomWarnings.CURSOR_MISMATCH)
     @Query("SELECT " +
             "a.id AS id, " +
             "a.estado AS estado, " +
@@ -238,6 +245,7 @@ ORDER BY a.ordenRuta ASC
             "SELECT " +
                     "  a.id        AS asignacionId, " +
                     "  a.ordenRuta AS orden, " +
+                    "  a.estado    AS estado, " +
                     "  s.lat       AS lat, " +
                     "  s.lon       AS lon, " +
                     "  s.direccion AS direccion " +
@@ -255,6 +263,7 @@ ORDER BY a.ordenRuta ASC
     class RutaPunto {
         public int asignacionId;
         public Integer orden;   // a.ordenRuta
+        public String estado;   // a.estado
         public Double lat;      // s.lat
         public Double lon;      // s.lon
         public String direccion;// s.direccion (opcional para snippet)
@@ -290,4 +299,10 @@ ORDER BY a.ordenRuta ASC
         public String horaDesde;
         public String horaHasta;
     }
+
+    /** Posiciones actuales (lat/lon) de recolectores para una fecha y zona (solo si tienen coordenadas). */
+    @Query("SELECT r.id AS id, r.lat AS lat, r.lon AS lon FROM asignaciones a JOIN recolectores r ON r.id = a.recolectorId WHERE a.fecha = :fecha AND r.zona = :zona AND r.lat IS NOT NULL AND r.lon IS NOT NULL GROUP BY r.id")
+    List<RecolectorPos> recolectorPosiciones(String fecha, String zona);
+
+    class RecolectorPos { public int id; public Double lat; public Double lon; }
 }

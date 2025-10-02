@@ -105,5 +105,33 @@ public final class NotificationHelper {
         } catch (SecurityException ignored) { }
     }
 
-
+    /** Notificación enriquecida para ruta asignada (manifiesto). */
+    @android.annotation.SuppressLint("MissingPermission")
+    public static void notifyRecolectorRutaEnriquecida(Context ctx,
+                                                       int recolectorId,
+                                                       long manifiestoId,
+                                                       double distanciaM,
+                                                       long horaInicioMillis,
+                                                       int paradas) {
+        if (!hasPostNotifications(ctx)) return;
+        String distKm = String.format(java.util.Locale.getDefault(), "%.1f km", distanciaM/1000.0);
+        java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault());
+        String hora = df.format(new java.util.Date(horaInicioMillis));
+        String title = "Ruta asignada: " + paradas + " paradas";
+        String text = "Inicio ~" + hora + " • Distancia aprox: " + distKm;
+        int notifyId = ("ruta_"+recolectorId+"_"+manifiestoId).hashCode();
+        Intent intent = new Intent(ctx, com.hfad.encomiendas.MainActivity.class);
+        intent.putExtra("manifiestoId", manifiestoId);
+        intent.putExtra("fromNotification", true);
+        PendingIntent pi = PendingIntent.getActivity(ctx, notifyId, intent,
+                (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT : PendingIntent.FLAG_UPDATE_CURRENT));
+        NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CH_ASSIGNMENTS)
+                .setSmallIcon(com.hfad.encomiendas.R.drawable.ic_stat_assignment)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                .setAutoCancel(true)
+                .setContentIntent(pi);
+        try { NotificationManagerCompat.from(ctx).notify(notifyId, b.build()); } catch (SecurityException ignored) {}
+    }
 }

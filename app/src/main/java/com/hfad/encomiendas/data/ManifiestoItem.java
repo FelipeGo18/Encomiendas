@@ -10,6 +10,7 @@ public class ManifiestoItem {
 
     public int manifiestoId;
     public long solicitudId;
+    public Integer orden;              // NUEVO: posición en la ruta
 
     public String guia;
     public String destinoCiudad;

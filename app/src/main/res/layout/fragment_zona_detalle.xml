@@ -29,7 +29,67 @@
             <FrameLayout
                 android:id="@+id/map_container"
                 android:layout_width="match_parent"
-                android:layout_height="240dp" />
+                android:layout_height="240dp">
+
+                <!-- Overlay info pequeña -->
+                <TextView
+                    android:id="@+id/tvInfoMini"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="8dp"
+                    android:padding="6dp"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF"
+                    android:background="#66000000"
+                    android:text=""/>
+
+                <!-- Leyenda -->
+                <LinearLayout
+                    android:id="@+id/legendLayout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|start"
+                    android:layout_margin="8dp"
+                    android:orientation="horizontal"
+                    android:padding="6dp"
+                    android:background="#66000000">
+
+                    <TextView
+                        android:id="@+id/legendPendiente"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="P"
+                        android:textColor="#FF9800"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="12dp"/>
+                    <TextView
+                        android:id="@+id/legendParada"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="R"
+                        android:textColor="#2196F3"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="12dp"/>
+                    <TextView
+                        android:id="@+id/legendRecolector"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="C"
+                        android:textColor="#4CAF50"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+
+                <!-- Botón follow -->
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/btnFollow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|end"
+                    android:layout_margin="12dp"
+                    android:contentDescription="@string/follow_off"
+                    app:srcCompat="@drawable/ic_recolector"/>
+
+            </FrameLayout>
         </com.google.android.material.card.MaterialCardView>
 
         <!-- Botón para generar/asignar ruta en esta zona -->
@@ -37,6 +97,15 @@
             android:id="@+id/btnGenerarRuta"
             android:text="Generar ruta"
             android:layout_marginTop="12dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <!-- Botón para generar ruta basada en polígono -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGenerarRutaPoligono"
+            android:text="Generar ruta (polígono)"
+            android:visibility="gone"
+            android:layout_marginTop="8dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 

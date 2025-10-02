@@ -1,6 +1,8 @@
 package com.hfad.encomiendas.ui;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -24,32 +26,58 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.maps.model.Polygon;
+import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.material.button.MaterialButton;
 import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.core.AsignadorService;
+import com.hfad.encomiendas.core.GeoUtils;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.AsignacionDao;
 import com.hfad.encomiendas.data.Solicitud;
 import com.hfad.encomiendas.data.SolicitudDao;
+import com.hfad.encomiendas.data.Zone;
 import com.hfad.encomiendas.ui.adapters.PendienteDetalleAdapter;
 import com.hfad.encomiendas.ui.adapters.ZonaDetalleAdapter;
+import com.google.maps.android.clustering.ClusterManager;
+import com.hfad.encomiendas.ui.ZonaClusterItem.Tipo;
+import com.hfad.encomiendas.core.TrackingService;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import android.widget.FrameLayout;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
+import com.hfad.encomiendas.data.RecolectorDao;
 
 public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback {
 
     private String fecha;
     private String zona;
+    private long zoneId = -1L;
 
     private TextView tvTitulo;
     private RecyclerView rvPendientes, rvAsignadas;
     private PendienteDetalleAdapter pendientesAdapter;
     private ZonaDetalleAdapter asignadasAdapter;
     private MaterialButton btnGenerarRuta;
-
+    private MaterialButton btnGenerarRutaPoligono; // nuevo
     private GoogleMap map;
+    private Polygon drawnPolygon; // referencia
+    private ClusterManager<ZonaClusterItem> clusterManager;
+    private FloatingActionButton btnFollow;
+    private boolean followEnabled = false;
+    private LatLng lastFollowLatLng = null;
+    private int followedRecolectorId = -1;
+    private TextView tvInfoMini; // para ETA / resumen rápido
+
+    private final Handler refreshHandler = new Handler(Looper.getMainLooper());
+    private final Runnable refreshTask = new Runnable() {
+        @Override public void run() {
+            cargarMapa();
+            refreshHandler.postDelayed(this, 20000); // refresco cada 20s
+        }
+    };
 
     public ZonaDetalleFragment() {}
 
@@ -63,11 +91,15 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
         super.onViewCreated(v, savedInstanceState);
         fecha = (getArguments() != null) ? getArguments().getString("fecha") : null;
         zona  = (getArguments() != null) ? getArguments().getString("zona")  : null;
+        zoneId = (getArguments()!=null) ? (long) getArguments().getInt("zoneId", -1) : -1L;
 
         tvTitulo       = v.findViewById(R.id.tvTituloZona);
         rvPendientes   = v.findViewById(R.id.rvPendientes);
         rvAsignadas    = v.findViewById(R.id.rvAsignadas);
         btnGenerarRuta = v.findViewById(R.id.btnGenerarRuta);
+        btnGenerarRutaPoligono = v.findViewById(R.id.btnGenerarRutaPoligono);
+        tvInfoMini = v.findViewById(R.id.tvInfoMini);
+        btnFollow = v.findViewById(R.id.btnFollow);
 
         rvPendientes.setLayoutManager(new LinearLayoutManager(requireContext()));
         rvAsignadas.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -100,13 +132,37 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
         if (btnGenerarRuta != null) {
             btnGenerarRuta.setOnClickListener(view -> generarRuta());
         }
-
+        if (btnGenerarRutaPoligono != null) {
+            btnGenerarRutaPoligono.setOnClickListener(view -> abrirPreviewPoligono());
+            btnGenerarRutaPoligono.setVisibility(View.GONE); // se mostrará tras cargar polígono válido
+        }
+        FrameLayout mapContainer = v.findViewById(R.id.map_container);
+        if (mapContainer != null) {
+            mapContainer.setOnClickListener(_v -> abrirMapaFullscreen());
+            mapContainer.setForeground(requireContext().getDrawable(android.R.drawable.list_selector_background));
+        }
+        if (btnFollow != null) btnFollow.setOnClickListener(_v -> toggleFollow());
         cargarListas();
+    }
+
+    private void abrirMapaFullscreen(){
+        Bundle b = new Bundle();
+        b.putString("fecha", fecha);
+        b.putString("zona", zona);
+        b.putInt("zoneId", (int) zoneId);
+        if (isAdded()) androidx.navigation.Navigation.findNavController(requireView())
+                .navigate(R.id.zonaMapaFullFragment, b);
     }
 
     @Override public void onResume() {
         super.onResume();
         cargarMapa();
+        refreshHandler.postDelayed(refreshTask, 20000);
+    }
+
+    @Override public void onPause() {
+        super.onPause();
+        refreshHandler.removeCallbacks(refreshTask);
     }
 
     // ================== ACCIÓN: GENERAR RUTA ==================
@@ -166,64 +222,137 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
         cargarMapa();
     }
 
-    private void cargarMapa() {
-        if (map == null || TextUtils.isEmpty(fecha) || TextUtils.isEmpty(zona)) return;
-        map.clear();
+    private void abrirPreviewPoligono(){
+        if (zoneId <= 0) { toast("Zona sin polígono"); return; }
+        Bundle b = new Bundle();
+        b.putInt("zoneId", (int) zoneId);
+        b.putString("fecha", fecha);
+        androidx.navigation.Navigation.findNavController(requireView())
+                .navigate(R.id.poligonoRutaPreviewFragment, b);
+    }
 
-        final String fFecha = fecha;
-        final String fZona  = zona;
+    private void maybeEnablePoligonoButton(boolean enable){
+        if (btnGenerarRutaPoligono != null) btnGenerarRutaPoligono.setVisibility(enable?View.VISIBLE:View.GONE);
+    }
 
+    private void dibujarPoligonoZonaIfAny(){
+        if (map == null || zoneId <= 0) { maybeEnablePoligonoButton(false); return; }
         Executors.newSingleThreadExecutor().execute(() -> {
             AppDatabase db = AppDatabase.getInstance(requireContext());
-            final List<Solicitud> pendientesLL =
-                    db.solicitudDao().listUnassignedByFechaZona(fFecha, fZona == null ? "" : fZona);
-            final List<AsignacionDao.RutaPunto> ruta =
-                    db.asignacionDao().rutaByFechaZona(fFecha, fZona == null ? "" : fZona);
-
-            Log.d("ZONA", "pendientes=" + (pendientesLL==null?0:pendientesLL.size()) +
-                    " ruta=" + (ruta==null?0:ruta.size()));
-
+            Zone z = db.zoneDao().getById(zoneId);
+            if (z == null) { runOnUi(() -> maybeEnablePoligonoButton(false)); return; }
+            List<LatLng> pts = GeoUtils.jsonToPolygon(z.polygonJson);
+            boolean enable = pts.size() >= 3;
             runOnUi(() -> {
-                LatLngBounds.Builder bounds = new LatLngBounds.Builder();
-                boolean hasBounds = false;
-
-                // Naranja: pendientes
-                if (pendientesLL != null) for (Solicitud s : pendientesLL) {
-                    if (s.lat == null || s.lon == null) continue;
-                    LatLng p = new LatLng(s.lat, s.lon);
-                    map.addMarker(new MarkerOptions()
-                            .position(p)
-                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
-                            .title("Pendiente")
-                            .snippet(shortDir(s.direccion)));
-                    bounds.include(p);
-                    hasBounds = true;
+                if (enable) {
+                    // dibujar
+                    if (drawnPolygon != null) drawnPolygon.remove();
+                    PolygonOptions opts = new PolygonOptions().addAll(pts)
+                            .strokeColor(0xFF673AB7).strokeWidth(6f).fillColor(0x33673AB7);
+                    try {
+                        drawnPolygon = map.addPolygon(opts);
+                    } catch (Exception ignore) {}
+                    // ajustar cámara si no hay markers todavía
+                    try {
+                        LatLngBounds.Builder b = new LatLngBounds.Builder();
+                        for (LatLng p: pts) b.include(p);
+                        map.animateCamera(CameraUpdateFactory.newLatLngBounds(b.build(), 120));
+                    } catch (Exception ignore) {}
                 }
-
-                // Azul: ruta asignada
-                List<LatLng> poly = new ArrayList<>();
-                if (ruta != null) for (AsignacionDao.RutaPunto rp : ruta) {
-                    if (rp.lat == null || rp.lon == null) continue;
-                    LatLng p = new LatLng(rp.lat, rp.lon);
-                    String title = "Parada " + (rp.orden == null ? "?" : rp.orden);
-                    map.addMarker(new MarkerOptions().position(p).title(title).snippet(shortDir(rp.direccion)));
-                    poly.add(p);
-                    bounds.include(p);
-                    hasBounds = true;
-                }
-                if (poly.size() >= 2) {
-                    map.addPolyline(new PolylineOptions().addAll(poly).width(8f));
-                }
-
-                if (hasBounds) {
-                    try { map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds.build(), 120)); }
-                    catch (Exception ignore) {}
-                } else {
-                    // Bogotá por defecto
-                    map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(4.65, -74.1), 11f));
-                }
+                maybeEnablePoligonoButton(enable);
             });
         });
+    }
+
+    private void toggleFollow(){
+        followEnabled = !followEnabled;
+        if (btnFollow != null) {
+            btnFollow.setContentDescription(followEnabled? getString(R.string.follow_on): getString(R.string.follow_off));
+            btnFollow.setAlpha(followEnabled?1f:0.6f);
+        }
+        if (followEnabled && lastFollowLatLng != null && map != null) {
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(lastFollowLatLng, map.getCameraPosition().zoom));
+        }
+    }
+
+    private void initClusterIfNeeded(){
+        if (map == null || clusterManager != null) return;
+        clusterManager = new ClusterManager<>(requireContext(), map);
+        map.setOnCameraIdleListener(clusterManager);
+        map.setOnMarkerClickListener(clusterManager);
+        map.setOnCameraMoveStartedListener(reason -> {
+            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE && followEnabled) {
+                followEnabled = false; if (btnFollow!=null) { btnFollow.setAlpha(0.6f); btnFollow.setContentDescription(getString(R.string.follow_off)); }
+            }
+        });
+    }
+
+    private void cargarMapa() {
+        if (map == null || TextUtils.isEmpty(fecha) || TextUtils.isEmpty(zona)) return;
+        map.clear(); drawnPolygon = null; clusterManager = null; // rebuild cluster
+        initClusterIfNeeded();
+        final String fFecha = fecha;
+        final String fZona  = zona;
+        Executors.newSingleThreadExecutor().execute(() -> {
+            AppDatabase db = AppDatabase.getInstance(requireContext());
+            final List<Solicitud> pendientesLL = db.solicitudDao().listUnassignedByFechaZona(fFecha, fZona == null ? "" : fZona);
+            final List<AsignacionDao.RutaPunto> ruta = db.asignacionDao().rutaByFechaZona(fFecha, fZona == null ? "" : fZona);
+            final List<RecolectorDao.RecolectorPos> recs = db.recolectorDao().positionsByZona(fZona == null? "" : fZona);
+            runOnUi(() -> dibujarTodo(pendientesLL, ruta, recs));
+        });
+    }
+
+    private void dibujarTodo(List<Solicitud> pendientesLL, List<AsignacionDao.RutaPunto> ruta, List<RecolectorDao.RecolectorPos> recs){
+        initClusterIfNeeded();
+        if (clusterManager == null) return;
+        clusterManager.clearItems();
+        LatLngBounds.Builder bounds = new LatLngBounds.Builder();
+        boolean hasBounds = false;
+        List<LatLng> poly = new ArrayList<>();
+        // Pendientes
+        if (pendientesLL != null) for (Solicitud s: pendientesLL){
+            if (s.lat==null||s.lon==null) continue; LatLng p = new LatLng(s.lat,s.lon);
+            clusterManager.addItem(new ZonaClusterItem(p, "Pendiente", shortDir(s.direccion), Tipo.PENDIENTE));
+            bounds.include(p); hasBounds=true; }
+        // Ruta
+        if (ruta != null) for (AsignacionDao.RutaPunto rp: ruta){
+            if (rp.lat==null||rp.lon==null) continue; LatLng p = new LatLng(rp.lat,rp.lon);
+            String title = "Parada "+ (rp.orden==null?"?":rp.orden);
+            clusterManager.addItem(new ZonaClusterItem(p, title, shortDir(rp.direccion), Tipo.PARADA));
+            poly.add(p); bounds.include(p); hasBounds=true; }
+        if (poly.size()>=2) map.addPolyline(new PolylineOptions().addAll(poly).width(8f).color(0xFF2196F3));
+        // Recolectores
+        LatLng firstStop = poly.isEmpty()? null : poly.get(0);
+        double bestDistKm = Double.MAX_VALUE; LatLng bestPos = null; int bestId = -1;
+        if (recs != null) for (RecolectorDao.RecolectorPos r: recs){
+            if (r.lat==null||r.lon==null) continue; LatLng pr = new LatLng(r.lat,r.lon);
+            clusterManager.addItem(new ZonaClusterItem(pr, "Recolector #"+r.id, null, Tipo.RECOLECTOR));
+            bounds.include(pr); hasBounds=true;
+            if (firstStop!=null){
+                map.addPolyline(new PolylineOptions().add(pr, firstStop).width(6f).color(0xFF4CAF50));
+                double d = TrackingService.haversine(pr.latitude, pr.longitude, firstStop.latitude, firstStop.longitude);
+                if (d < bestDistKm){ bestDistKm = d; bestPos = pr; bestId = r.id; }
+            }
+        }
+        // Polígono y botón
+        dibujarPoligonoZonaIfAny();
+        // ETA
+        if (tvInfoMini != null){
+            if (bestPos != null){
+                double speedKmh = 25.0; // asumido
+                double hours = bestDistKm / speedKmh; long etaMin = Math.round(hours * 60);
+                tvInfoMini.setText("ETA ~"+etaMin+" min / Dist " + String.format(java.util.Locale.getDefault(),"%.1f km", bestDistKm));
+            } else tvInfoMini.setText("");
+        }
+        if (followEnabled && bestPos != null){ lastFollowLatLng = bestPos; followedRecolectorId = bestId; map.animateCamera(CameraUpdateFactory.newLatLng(bestPos)); }
+        else if (bestPos != null){ lastFollowLatLng = bestPos; followedRecolectorId = bestId; }
+        // Ajustar cámara
+        if (hasBounds){
+            try { map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds.build(), 120)); } catch (Exception ignore) {}
+        } else {
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(4.65, -74.1), 11f));
+        }
+        clusterManager.cluster();
     }
 
     private String shortDir(String d) {

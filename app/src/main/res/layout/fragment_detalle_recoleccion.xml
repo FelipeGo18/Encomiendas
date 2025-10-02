@@ -2,6 +2,7 @@
 <androidx.core.widget.NestedScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/scrollDetalleRecoleccion"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true">
@@ -57,7 +58,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <!-- Contenedor del mapa -->
+                <!-- Contenedor del mapa (mapa reducido opcional) -->
                 <FrameLayout
                     android:id="@+id/frameMapaMini"
                     android:layout_width="match_parent"
@@ -69,9 +70,34 @@
 
                     <com.google.android.gms.maps.MapView
                         android:id="@+id/map_recolector"
-                    android:layout_height="wrap_content"
-                        android:layout_height="match_parent"/>
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="@string/mapa_recolector_desc"/>
+
+                    <!-- Botón flotante para expandir mapa -->
+                    <com.google.android.material.floatingactionbutton.FloatingActionButton
+                        android:id="@+id/fabExpandMap"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top|end"
+                        android:layout_margin="12dp"
+                        android:src="@android:drawable/ic_dialog_info"
+                        android:contentDescription="Expandir mapa"
+                        app:fabSize="mini"
+                        app:backgroundTint="@color/colorPrimary"
+                        app:tint="@android:color/white" />
+
                 </FrameLayout>
+
+                <!-- Botón adicional debajo del mapa -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnVerMapaCompleto"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📍 Ver mapa en pantalla completa"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rvTimeline"
@@ -109,6 +135,7 @@
                     android:layout_marginTop="8dp"
                     android:scaleType="centerCrop"
                     android:background="#22000000"
+                    android:contentDescription="@string/foto_evidencia_desc"
                     android:clickable="true"
                     android:focusable="true"/>
 
@@ -195,6 +222,7 @@
                     android:layout_marginTop="8dp"
                     android:background="@android:color/white"
                     android:scaleType="fitCenter"
+                    android:contentDescription="@string/firma_preview_desc"
                     android:visibility="gone"/>
 
                 <!-- Vista de DIBUJO (solo cuando no hay firma o guía no activa) -->
@@ -203,7 +231,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="220dp"
                     android:layout_marginTop="8dp"
-                    android:background="@android:color/white"/>
+                    android:background="@android:color/white"
+                    android:contentDescription="@string/firma_dibujo_desc"/>
 
                 <LinearLayout
                     android:orientation="horizontal"

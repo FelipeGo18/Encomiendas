@@ -1,5 +1,8 @@
 package com.hfad.encomiendas.ui;
 
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -7,6 +10,8 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -15,9 +20,21 @@ import androidx.navigation.fragment.NavHostFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import androidx.work.Data;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
 import com.hfad.encomiendas.R;
+import com.hfad.encomiendas.core.LocationPeriodicWorker;
 import com.hfad.encomiendas.core.SessionManager;
+import com.hfad.encomiendas.core.TrackingForegroundService;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.AsignacionDao;
 import com.hfad.encomiendas.data.Recolector;
@@ -35,6 +52,13 @@ public class MisAsignacionesFragment extends Fragment {
     private SwipeRefreshLayout swipe;
     private RecyclerView rv;
     private AsignacionesAdapter adapter;
+    private FusedLocationProviderClient fusedClient;
+    private LocationCallback locationCallback;
+    private ActivityResultLauncher<String> permisoLocationLauncher;
+    private ActivityResultLauncher<String[]> permisosMultiLauncher;
+    private Integer currentRecolectorId = null;
+    private boolean tieneFine = false;
+    private boolean tieneCoarse = false;
 
     public MisAsignacionesFragment() {}
 
@@ -62,7 +86,84 @@ public class MisAsignacionesFragment extends Fragment {
 
         if (swipe != null) swipe.setOnRefreshListener(this::loadData);
 
+        fusedClient = LocationServices.getFusedLocationProviderClient(requireContext());
+        permisoLocationLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+            if (granted) iniciarLocationUpdates();
+            else Toast.makeText(requireContext(), "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show();
+        });
+        permisosMultiLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), res -> {
+            Boolean fine = res.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false);
+            Boolean coarse = res.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false);
+            tieneFine = Boolean.TRUE.equals(fine);
+            tieneCoarse = Boolean.TRUE.equals(coarse) || tieneFine; // fine implica coarse
+            if (tieneFine || tieneCoarse) iniciarLocationUpdates();
+            else Toast.makeText(requireContext(), "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show();
+        });
+        prepararCallbackUbicacion();
         loadData();
+    }
+
+    private void prepararCallbackUbicacion(){
+        locationCallback = new LocationCallback() {
+            @Override public void onLocationResult(@NonNull LocationResult locationResult) {
+                if (locationResult.getLastLocation() == null || currentRecolectorId == null) return;
+                double lat = locationResult.getLastLocation().getLatitude();
+                double lon = locationResult.getLastLocation().getLongitude();
+                long ts = System.currentTimeMillis();
+                Executors.newSingleThreadExecutor().execute(() -> {
+                    try {
+                        AppDatabase.getInstance(requireContext()).recolectorDao().updateLocation(currentRecolectorId, lat, lon, ts);
+                    } catch (Exception ignored) {}
+                });
+            }
+        };
+    }
+
+    private void solicitarPermisoUbicacionYArrancar(){
+        tieneFine = requireContext().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        tieneCoarse = requireContext().checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (tieneFine || tieneCoarse) {
+            iniciarLocationUpdates();
+        } else {
+            permisosMultiLauncher.launch(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION});
+        }
+    }
+
+    private void iniciarLocationUpdates(){
+        if (fusedClient == null || locationCallback == null) return;
+        try {
+            long interval = tieneFine ? 15000L : 30000L;
+            float minDist = tieneFine ? 25f : 60f;
+            int priority = tieneFine ? Priority.PRIORITY_HIGH_ACCURACY : Priority.PRIORITY_BALANCED_POWER_ACCURACY;
+            LocationRequest req = new LocationRequest.Builder(priority, interval)
+                    .setMinUpdateDistanceMeters(minDist)
+                    .build();
+            fusedClient.requestLocationUpdates(req, locationCallback, requireActivity().getMainLooper());
+        } catch (SecurityException ignored) {}
+    }
+
+    private void scheduleWorker(String email){
+        Data data = new Data.Builder().putString(LocationPeriodicWorker.KEY_EMAIL, email).build();
+        PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(LocationPeriodicWorker.class, java.time.Duration.ofMinutes(30))
+                .setInputData(data)
+                .build();
+        WorkManager.getInstance(requireContext()).enqueueUniquePeriodicWork("loc_periodic", ExistingPeriodicWorkPolicy.UPDATE, req);
+    }
+
+    private void iniciarServicioForegroundSiAplica(){
+        if (currentRecolectorId == null) return;
+        // Sólo si tiene fine + background (opcional) => intentamos
+        boolean bg = requireContext().checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (tieneFine && bg) {
+            Intent i = new Intent(requireContext(), TrackingForegroundService.class);
+            i.setAction(TrackingForegroundService.ACTION_START);
+            i.putExtra("recolectorId", currentRecolectorId);
+            requireContext().startService(i);
+        }
+    }
+
+    private void detenerLocationUpdates(){
+        if (fusedClient != null && locationCallback != null) fusedClient.removeLocationUpdates(locationCallback);
     }
 
     private void loadData() {
@@ -93,6 +194,27 @@ public class MisAsignacionesFragment extends Fragment {
                 });
             }
         });
+    }
+
+    @Override public void onResume(){
+        super.onResume();
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                SessionManager sm = new SessionManager(requireContext());
+                String email = sm.getEmail();
+                RecolectorDao rdao = AppDatabase.getInstance(requireContext()).recolectorDao();
+                Recolector r = (email == null)? null : rdao.getByUserEmail(email);
+                currentRecolectorId = (r == null)? null : r.id;
+                if (email != null) scheduleWorker(email);
+                runOnUi(() -> { solicitarPermisoUbicacionYArrancar(); iniciarServicioForegroundSiAplica();});
+            } catch (Exception e) { /* ignore */ }
+        });
+    }
+
+    @Override public void onPause(){
+        super.onPause();
+        detenerLocationUpdates();
+        // No detenemos el worker; servicio foreground se puede parar manualmente aparte
     }
 
     /* ---------------- Adapter interno ---------------- */

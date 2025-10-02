@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/map_full_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Overlay simple para info (opcional) -->
+    <TextView
+        android:id="@+id/tvInfoRuta"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:background="#66000000"
+        android:padding="8dp"
+        android:textSize="12sp"
+        android:text="Ruta zona"
+        android:layout_margin="12dp"
+        android:layout_gravity="top|start"/>
+
+    <LinearLayout
+        android:id="@+id/legendFull"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="#66000000"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="12dp">
+        <TextView android:text="P" android:textColor="#FF9800" android:textStyle="bold" android:layout_marginEnd="16dp"/>
+        <TextView android:text="R" android:textColor="#2196F3" android:textStyle="bold" android:layout_marginEnd="16dp"/>
+        <TextView android:text="C" android:textColor="#4CAF50" android:textStyle="bold"/>
+    </LinearLayout>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnFollowFull"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/follow_off"
+        app:srcCompat="@drawable/ic_recolector" />
+
+</FrameLayout>

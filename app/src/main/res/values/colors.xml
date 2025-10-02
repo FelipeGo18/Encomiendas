@@ -8,4 +8,18 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="white_60">#99FFFFFF</color>
+
+    <!-- Colores principales para la aplicación -->
+    <color name="colorPrimary">#FF1976D2</color>
+    <color name="colorPrimaryVariant">#FF1565C0</color>
+    <color name="colorSecondary">#FF03DAC6</color>
+    <color name="colorSecondaryVariant">#FF018786</color>
+    <color name="colorBackground">#FFFFFFFF</color>
+    <color name="colorSurface">#FFFFFFFF</color>
+    <color name="colorError">#FFB00020</color>
+    <color name="colorOnPrimary">#FFFFFFFF</color>
+    <color name="colorOnSecondary">#FF000000</color>
+    <color name="colorOnBackground">#FF000000</color>
+    <color name="colorOnSurface">#FF000000</color>
+    <color name="colorOnError">#FFFFFFFF</color>
 </resources>

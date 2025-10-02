@@ -10,6 +10,16 @@ public class Manifiesto {
 
     @NonNull public String codigo;       // p.ej. M-2025-0001
     public long   fechaMillis;           // fecha del manifiesto (millis)
+
+    // Nueva metadata de la ruta
+    public Long zoneId;                  // zona asociada (opcional)
+    public Integer paradas;              // número de paradas
+    public Integer distanciaTotalM;      // distancia estimada
+    public Integer duracionEstimadaMin;  // duración estimada (heurística)
+    public String polylineEncoded;       // polyline para la ruta
+    public Long horaInicioPlanificada;   // inicio estimado
+
+    // Orígenes/destinos opcionales
     public String origenCiudad;          // opcional
     public String origenDir;             // opcional
     public String destinoCiudad;         // opcional

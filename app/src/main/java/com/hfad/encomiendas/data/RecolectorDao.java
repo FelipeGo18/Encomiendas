@@ -46,4 +46,8 @@ public interface RecolectorDao {
     @Query("UPDATE recolectores SET lat = :lat, lon = :lon, lastSeenMillis = :ts WHERE id = :id")
     void updateLocation(int id, double lat, double lon,long ts);
 
+    @Query("SELECT r.id AS id, r.lat AS lat, r.lon AS lon FROM recolectores r WHERE r.lat IS NOT NULL AND r.lon IS NOT NULL AND LOWER(r.zona) = LOWER(:zona) GROUP BY r.id")
+    List<RecolectorPos> positionsByZona(String zona);
+
+    class RecolectorPos { public int id; public Double lat; public Double lon; }
 }

@@ -19,6 +19,8 @@ android {
         val mapsKey = (project.findProperty("MAPS_API_KEY") as String?) ?: ""
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey
+
+        buildConfigField("long", "MAP_REFRESH_MS", "20000L")
     }
 
     buildTypes {
@@ -63,6 +65,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("com.google.android.libraries.places:places:3.5.0")
+    // Maps Utils para clustering
+    implementation("com.google.maps.android:android-maps-utils:3.8.2")
 
     // --- Room ---
     implementation("androidx.room:room-runtime:2.6.1")
@@ -72,4 +76,10 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")
     annotationProcessor("com.github.bumptech.glide:compiler:4.16.0")
 
+    // --- Firebase Messaging (requiere configurar google-services.json y plugin en el root build.gradle) ---
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-messaging")
+
+    // --- WorkManager ---
+    implementation("androidx.work:work-runtime:2.9.0")
 }

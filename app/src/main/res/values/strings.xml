@@ -2,4 +2,18 @@
     <string name="app_name">Encomiendas</string>
 
     <string name="google_maps_key">TU_API_KEY</string>
+
+    <!-- Accesibilidad / contentDescription -->
+    <string name="mapa_recolector_desc">Mapa de ubicación del recolector</string>
+    <string name="foto_evidencia_desc">Foto de evidencia de la recolección</string>
+    <string name="firma_preview_desc">Vista previa de la firma capturada</string>
+    <string name="firma_dibujo_desc">Área para dibujar la firma del receptor</string>
+
+    <!-- Leyendas y seguimiento -->
+    <string name="legend_pendiente">Pendiente</string>
+    <string name="legend_parada">Parada</string>
+    <string name="legend_recolector">Recolector</string>
+    <string name="follow_on">Seguimiento ON</string>
+    <string name="follow_off">Seguir recolector</string>
+    <string name="eta_label">ETA</string>
 </resources>

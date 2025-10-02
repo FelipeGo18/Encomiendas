@@ -31,6 +31,18 @@
             app:destination="@id/misAsignacionesFragment"
             app:popUpTo="@id/loginFragment"
             app:popUpToInclusive="true" />
+        <!-- Ir a HUB -->
+        <action
+            android:id="@+id/action_login_to_hub"
+            app:destination="@id/hubDashboardFragment"
+            app:popUpTo="@id/loginFragment"
+            app:popUpToInclusive="true" />
+        <!-- Ir a Home (Remitente) -->
+        <action
+            android:id="@+id/action_login_to_home"
+            app:destination="@id/homeDashboardFragment"
+            app:popUpTo="@id/loginFragment"
+            app:popUpToInclusive="true" />
     </fragment>
 
     <!-- REGISTRO (Remitente) -->
@@ -58,6 +70,63 @@
         <action
             android:id="@+id/action_asignador_to_zonaDetalle"
             app:destination="@id/zonaDetalleFragment" />
+        <action
+            android:id="@+id/action_asignador_to_gestionZonas"
+            app:destination="@id/gestionZonasFragment" />
+    </fragment>
+
+    <!-- NUEVO: Gestión de Zonas -->
+    <fragment
+        android:id="@+id/gestionZonasFragment"
+        android:name="com.hfad.encomiendas.ui.GestionZonasFragment"
+        android:label="Zonas" >
+        <action
+            android:id="@+id/action_gestionZonas_to_zoneMapEditor"
+            app:destination="@id/zoneMapEditorFragment" />
+    </fragment>
+
+    <!-- Editor de polígono de zona -->
+    <fragment
+        android:id="@+id/zoneMapEditorFragment"
+        android:name="com.hfad.encomiendas.ui.ZoneMapEditorFragment"
+        android:label="Editar Zona">
+        <argument android:name="zoneId" app:argType="integer" android:defaultValue="-1" />
+    </fragment>
+
+    <!-- Home Dashboard (remitente) con acciones a solicitar y mapa de solicitud -->
+    <fragment
+        android:id="@+id/homeDashboardFragment"
+        android:name="com.hfad.encomiendas.ui.HomeDashboardFragment"
+        android:label="Inicio">
+        <action
+            android:id="@+id/action_home_to_solicitar"
+            app:destination="@id/solicitarRecoleccionFragment" />
+        <action
+            android:id="@+id/action_home_to_solicitudMapa"
+            app:destination="@id/solicitudMapaFragment" />
+    </fragment>
+
+    <!-- Ver una solicitud individual en mapa -->
+    <fragment
+        android:id="@+id/solicitudMapaFragment"
+        android:name="com.hfad.encomiendas.ui.SolicitudMapaFragment"
+        android:label="Solicitud en mapa" />
+
+    <!-- Ver ruta / punto de recolección -->
+    <fragment
+        android:id="@+id/recoleccionMapaFragment"
+        android:name="com.hfad.encomiendas.ui.RecoleccionMapaFragment"
+        android:label="Recolección en mapa" />
+
+    <!-- Detalle recolección con acción al mapa -->
+    <fragment
+        android:id="@+id/detalleRecoleccionFragment"
+        android:name="com.hfad.encomiendas.ui.DetalleRecoleccionFragment"
+        android:label="Detalle de recolección">
+        <argument android:name="asignacionId" app:argType="integer" />
+        <action
+            android:id="@+id/action_detalle_to_recoleccionMapa"
+            app:destination="@id/recoleccionMapaFragment" />
     </fragment>
 
     <!-- ASIGNADOR: Detalle de zona (pendientes/asignadas) -->
@@ -71,6 +140,10 @@
         <argument
             android:name="zona"
             app:argType="string" />
+        <argument
+            android:name="zoneId"
+            app:argType="integer"
+            android:defaultValue="-1" />
     </fragment>
 
     <!-- RECOLECTOR: Lista de asignaciones propias -->
@@ -83,40 +156,45 @@
             app:destination="@id/detalleRecoleccionFragment" />
     </fragment>
 
-    <!-- RECOLECTOR: Detalle (foto + firma) -->
-    <fragment
-        android:id="@+id/detalleRecoleccionFragment"
-        android:name="com.hfad.encomiendas.ui.DetalleRecoleccionFragment"
-        android:label="Detalle de recolección">
-        <argument
-            android:name="asignacionId"
-            app:argType="integer" />
-        <action
-            android:id="@+id/action_detalle_to_recoleccionMapa"
-            app:destination="@id/recoleccionMapaFragment"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
-            android:id="@+id/action_home_to_solicitar"
-            app:destination="@id/solicitarRecoleccionFragment" />
-    </fragment>
-
+    <!-- NUEVO: Dashboard HUB -->
     <fragment
         android:id="@+id/hubDashboardFragment"
         android:name="com.hfad.encomiendas.ui.HubDashboardFragment"
-        android:label="HUB"/>
+        android:label="HUB" />
 
-        <action
-            android:id="@+id/action_home_to_solicitudMapa"
-            app:destination="@id/solicitudMapaFragment"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+    <!-- NUEVO: Dashboard REPARTIDOR -->
     <fragment
         android:id="@+id/repartidorDashboardFragment"
         android:name="com.hfad.encomiendas.ui.RepartidorDashboardFragment"
         android:label="Repartidor" />
+
+    <!-- Fragment de Entrega (faltaba, añadido) -->
+    <fragment
+        android:id="@+id/entregaFragment"
+        android:name="com.hfad.encomiendas.ui.EntregaFragment"
+        android:label="Entrega">
+        <argument
+            android:name="manifiestoItemId"
+            app:argType="integer" />
+    </fragment>
+
+    <!-- NUEVO: vista previa ruta polígono -->
+    <fragment
+        android:id="@+id/poligonoRutaPreviewFragment"
+        android:name="com.hfad.encomiendas.ui.PoligonoRutaPreviewFragment"
+        android:label="Ruta (polígono)">
+        <argument android:name="zoneId" app:argType="integer" android:defaultValue="-1" />
+        <argument android:name="fecha" app:argType="string" />
+    </fragment>
+
+    <!-- NUEVO: Mapa fullscreen de zona -->
+    <fragment
+        android:id="@+id/zonaMapaFullFragment"
+        android:name="com.hfad.encomiendas.ui.ZonaMapaFullFragment"
+        android:label="Mapa de zona">
+        <argument android:name="fecha" app:argType="string" />
+        <argument android:name="zona" app:argType="string" />
+        <argument android:name="zoneId" app:argType="integer" android:defaultValue="-1" />
+    </fragment>
 
 </navigation>
