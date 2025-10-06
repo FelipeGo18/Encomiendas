@@ -126,7 +126,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void seedDemoData() {
-        com.hfad.encomiendas.core.DemoSeeder.seedOnce(getApplicationContext());
+        // Ejecutar seeder en background thread después de que la BD esté lista
+        new Thread(() -> {
+            try {
+                // Pequeña pausa para asegurar que la BD esté completamente inicializada
+                Thread.sleep(1000);
+                com.hfad.encomiendas.core.DemoSeeder.seedOnce(getApplicationContext());
+                Log.d(TAG, "Seeder ejecutado correctamente");
+            } catch (Exception e) {
+                Log.e(TAG, "Error ejecutando seeder", e);
+            }
+        }).start();
     }
 
     private void requestPostNotificationsIfNeeded() {

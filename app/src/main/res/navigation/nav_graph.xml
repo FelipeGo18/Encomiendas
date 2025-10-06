@@ -166,7 +166,18 @@
     <fragment
         android:id="@+id/repartidorDashboardFragment"
         android:name="com.hfad.encomiendas.ui.RepartidorDashboardFragment"
-        android:label="Repartidor" />
+        android:label="Repartidor">
+        <!-- Acción para navegar a las calificaciones -->
+        <action
+            android:id="@+id/action_repartidor_to_calificaciones"
+            app:destination="@id/misCalificacionesFragment" />
+    </fragment>
+
+    <!-- NUEVO: Mis Calificaciones -->
+    <fragment
+        android:id="@+id/misCalificacionesFragment"
+        android:name="com.hfad.encomiendas.ui.MisCalificacionesFragment"
+        android:label="Mis Calificaciones" />
 
     <!-- Fragment de Entrega (faltaba, añadido) -->
     <fragment

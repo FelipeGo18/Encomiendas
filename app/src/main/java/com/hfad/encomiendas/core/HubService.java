@@ -75,66 +75,6 @@ public class HubService {
         return agregadas;
     }
 
-    /** Despacha un manifiesto: asigna repartidor, marca manifiesto DESPACHADO y pone todos sus ítems EN_RUTA. */
-    public void despacharManifiesto(int manifiestoId, String repartidorEmail) {
-        ManifiestoDao dao = db.manifiestoDao();
-        long ts = System.currentTimeMillis();
-        dao.despacharManifiesto(manifiestoId, ts, repartidorEmail);
-        dao.ponerItemsEnRuta(manifiestoId);
-    }
-
-    /* ========================= Helpers públicos opcionales ========================= */
-
-    /** Devuelve el último manifiesto ABIERTO (o null si no hay). No requiere métodos extra en el DAO. */
-    public Manifiesto getUltimoAbierto() {
-        List<Manifiesto> lista = db.manifiestoDao().listAbiertosODespachados();
-        if (lista == null || lista.isEmpty()) return null;
-        for (Manifiesto m : lista) {
-            if (m != null && "ABIERTO".equalsIgnoreCase(m.estado)) return m;
-        }
-        return null;
-    }
-
-    /** Busca un manifiesto por id recorriendo la lista disponible del DAO. */
-    public Manifiesto getById(int id) {
-        List<Manifiesto> lista = db.manifiestoDao().listAbiertosODespachados();
-        if (lista == null) return null;
-        for (Manifiesto m : lista) {
-            if (m != null && m.id == id) return m;
-        }
-        return null;
-    }
-
-    /* ========================= Utilidades internas ========================= */
-
-    private static boolean isEmpty(String s) {
-        return s == null || s.trim().isEmpty();
-    }
-
-    /** Extrae "Key: valor" desde un campo de notas; se detiene en ". ", " | " o fin. */
-    private static String meta(String notas, String key, String def) {
-        if (isEmpty(notas)) return def;
-        String lower = notas.toLowerCase(Locale.ROOT);
-        String k = (key + ":").toLowerCase(Locale.ROOT);
-        int i = lower.indexOf(k);
-        if (i < 0) return def;
-        i += k.length();
-        // saltar espacios tras "key:"
-        while (i < notas.length() && Character.isWhitespace(notas.charAt(i))) i++;
-        int endDot = lower.indexOf(". ", i);
-        int endBar = lower.indexOf(" | ", i);
-        int end = (endDot < 0 && endBar < 0) ? notas.length()
-                : (endDot < 0 ? endBar : (endBar < 0 ? endDot : Math.min(endDot, endBar)));
-        String v = notas.substring(i, Math.max(i, end)).trim();
-        return isEmpty(v) ? def : v;
-    }
-
-    private static String generarOtp() {
-        int n = (int) (Math.random() * 900000) + 100000;
-        return String.valueOf(n);
-    }
-
-
     public int clasificarGuiasPorDestino() {
         ManifiestoDao mdao = db.manifiestoDao();
         SolicitudDao  sdao = db.solicitudDao();
@@ -203,4 +143,32 @@ public class HubService {
     }
 
 
+    /* ========================= Utilidades internas ========================= */
+
+    private static boolean isEmpty(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    /** Extrae "Key: valor" desde un campo de notas; se detiene en ". ", " | " o fin. */
+    private static String meta(String notas, String key, String def) {
+        if (isEmpty(notas)) return def;
+        String lower = notas.toLowerCase(Locale.ROOT);
+        String k = (key + ":").toLowerCase(Locale.ROOT);
+        int i = lower.indexOf(k);
+        if (i < 0) return def;
+        i += k.length();
+        // saltar espacios tras "key:"
+        while (i < notas.length() && Character.isWhitespace(notas.charAt(i))) i++;
+        int endDot = lower.indexOf(". ", i);
+        int endBar = lower.indexOf(" | ", i);
+        int end = (endDot < 0 && endBar < 0) ? notas.length()
+                : (endDot < 0 ? endBar : (endBar < 0 ? endDot : Math.min(endDot, endBar)));
+        String v = notas.substring(i, Math.max(i, end)).trim();
+        return isEmpty(v) ? def : v;
+    }
+
+    private static String generarOtp() {
+        int n = (int) (Math.random() * 900000) + 100000;
+        return String.valueOf(n);
+    }
 }

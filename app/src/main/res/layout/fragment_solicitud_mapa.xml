@@ -1,47 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
-    <com.google.android.gms.maps.MapView
-        android:id="@+id/mapFull"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
-
-    <LinearLayout
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:background="#66000000"
+    <!-- Información de la solicitud -->
+    <TextView
+        android:id="@+id/tvInfo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="top">
+        android:padding="16dp"
+        android:text="Cargando solicitud..."
+        android:textSize="14sp"
+        android:background="?attr/colorSurfaceVariant" />
 
-        <TextView
-            android:id="@+id/tvInfo"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:text="Cargando..."/>
+    <!-- Fragmento del mapa -->
+    <fragment
+        android:id="@+id/map"
+        android:name="com.google.android.gms.maps.SupportMapFragment"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
-        <TextView
-            android:id="@+id/btnCerrar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Cerrar"
-            android:textColor="#FFFFFF"
-            android:padding="8dp"
-            android:background="@android:color/transparent"/>
-    </LinearLayout>
-
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabCenter"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:contentDescription="Centrar"
-        android:src="@android:drawable/ic_menu_mylocation"/>
-
-</FrameLayout>
+</LinearLayout>

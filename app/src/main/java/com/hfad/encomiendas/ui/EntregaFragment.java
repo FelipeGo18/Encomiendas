@@ -32,8 +32,11 @@ import com.google.android.material.button.MaterialButton;
 import com.hfad.encomiendas.BuildConfig;
 import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.data.AppDatabase;
+import com.hfad.encomiendas.data.Asignacion;
 import com.hfad.encomiendas.data.ManifiestoDao;
 import com.hfad.encomiendas.data.ManifiestoItem;
+import com.hfad.encomiendas.data.Rating;
+import com.hfad.encomiendas.data.RatingDao;
 import com.hfad.encomiendas.ui.widgets.SignatureView;
 
 import java.io.File;
@@ -61,6 +64,7 @@ public class EntregaFragment extends Fragment {
     private SignatureView signView;
     private MaterialButton btnGuardarFirma, btnLimpiar;
     private MaterialButton btnPreviewFoto;
+    private MaterialButton btnCalificar; // nuevo botón
 
     // Estado
     private String otpEsperado = null;
@@ -118,6 +122,9 @@ public class EntregaFragment extends Fragment {
         signView = v.findViewById(R.id.signView);
         btnGuardarFirma = v.findViewById(R.id.btnGuardarFirma);
         btnLimpiar = v.findViewById(R.id.btnLimpiar);
+        // añadir búsqueda de botón calificar si lo agregamos al layout (fallback null-safe)
+        btnCalificar = v.findViewById(R.id.btnCalificar);
+        if (btnCalificar != null) btnCalificar.setOnClickListener(v1 -> abrirDialogRating());
 
         fused = LocationServices.getFusedLocationProviderClient(requireContext()); // inicializar GPS
 
@@ -237,6 +244,7 @@ public class EntregaFragment extends Fragment {
                                 updateEnabled();
                                 tvEstado.setText("ENTREGADA");
                                 toast("Entrega registrada");
+                                intentarMostrarRating();
                             });
                         });
                     })
@@ -249,6 +257,7 @@ public class EntregaFragment extends Fragment {
                                 updateEnabled();
                                 tvEstado.setText("ENTREGADA");
                                 toast("Entrega registrada (sin GPS)");
+                                intentarMostrarRating();
                             });
                         });
                     });
@@ -261,6 +270,7 @@ public class EntregaFragment extends Fragment {
                     updateEnabled();
                     tvEstado.setText("ENTREGADA");
                     toast("Entrega registrada (sin permiso GPS)");
+                    intentarMostrarRating();
                 });
             });
         }
@@ -272,6 +282,61 @@ public class EntregaFragment extends Fragment {
         if (!ok) { toast("Confirma OTP o firma primero"); return; }
 
         guardarUbicacionYMarcarEntregada();
+    }
+
+    private void intentarMostrarRating(){
+        // Carga manifest item y si no hay rating abre dialog
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(requireContext());
+                ManifiestoItem it = db.manifiestoDao().getItem(itemId);
+                if (it == null) return;
+                RatingDao rdao = db.ratingDao();
+                Rating existing = rdao.byShipment(it.solicitudId);
+                if (existing == null) {
+                    com.hfad.encomiendas.data.Solicitud s = db.solicitudDao().byId(it.solicitudId);
+                    if (s != null) {
+                        final long remitenteId = s.remitenteId;
+                        Integer recolectorIdTmp = null;
+                        Asignacion asign = db.asignacionDao().getBySolicitudId(it.solicitudId);
+                        if (asign != null) recolectorIdTmp = asign.recolectorId;
+                        final Integer recolectorIdFinal = recolectorIdTmp;
+                        final long shipment = it.solicitudId;
+                        runOnUi(() -> {
+                            RatingDialogFragment.newInstance(shipment, remitenteId, recolectorIdFinal)
+                                    .show(getParentFragmentManager(), "ratingDialog");
+                        });
+                    }
+                } else {
+                    runOnUi(() -> { if (btnCalificar != null) btnCalificar.setVisibility(View.GONE); });
+                }
+            } catch (Exception ignore) {}
+        });
+    }
+
+    private void abrirDialogRating(){
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(requireContext());
+                ManifiestoItem it = db.manifiestoDao().getItem(itemId);
+                if (it == null) return;
+                RatingDao rdao = db.ratingDao();
+                if (rdao.byShipment(it.solicitudId) != null) {
+                    runOnUi(() -> toast("Ya calificado")); return;
+                }
+                com.hfad.encomiendas.data.Solicitud s = db.solicitudDao().byId(it.solicitudId);
+                if (s == null) return;
+                Asignacion asign = db.asignacionDao().getBySolicitudId(it.solicitudId);
+                Integer recolectorIdTmp = asign != null ? asign.recolectorId : null;
+                final Integer recolectorIdFinal2 = recolectorIdTmp;
+                final long remitenteIdFinal = s.remitenteId;
+                final long shipmentIdFinal = it.solicitudId;
+                runOnUi(() -> {
+                    RatingDialogFragment.newInstance(shipmentIdFinal, remitenteIdFinal, recolectorIdFinal2)
+                            .show(getParentFragmentManager(), "ratingDialogManual");
+                });
+            } catch (Exception e){ runOnUi(() -> toast("Error: "+e.getMessage())); }
+        });
     }
 
     private void updateEnabled() {
@@ -289,6 +354,9 @@ public class EntregaFragment extends Fragment {
         btnTomarFoto.setAlpha(alpha);
         btnGuardarFirma.setAlpha(alpha);
         btnLimpiar.setAlpha(alpha);
+        if (btnCalificar != null) {
+            btnCalificar.setVisibility(entregada ? View.VISIBLE : View.GONE);
+        }
     }
 
     private Bitmap decodeB64(String b64) {

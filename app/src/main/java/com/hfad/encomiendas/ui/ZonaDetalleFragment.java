@@ -66,6 +66,7 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
     private Polygon drawnPolygon; // referencia
     private ClusterManager<ZonaClusterItem> clusterManager;
     private FloatingActionButton btnFollow;
+    private FloatingActionButton btnExpandMap; // Nuevo botón para expandir mapa
     private boolean followEnabled = false;
     private LatLng lastFollowLatLng = null;
     private int followedRecolectorId = -1;
@@ -100,6 +101,7 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
         btnGenerarRutaPoligono = v.findViewById(R.id.btnGenerarRutaPoligono);
         tvInfoMini = v.findViewById(R.id.tvInfoMini);
         btnFollow = v.findViewById(R.id.btnFollow);
+        btnExpandMap = v.findViewById(R.id.btnExpandMap); // Nuevo botón para expandir mapa
 
         rvPendientes.setLayoutManager(new LinearLayoutManager(requireContext()));
         rvAsignadas.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -142,6 +144,13 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
             mapContainer.setForeground(requireContext().getDrawable(android.R.drawable.list_selector_background));
         }
         if (btnFollow != null) btnFollow.setOnClickListener(_v -> toggleFollow());
+
+        // Botón para expandir mapa a pantalla completa
+        if (btnExpandMap != null) {
+            btnExpandMap.setOnClickListener(_v -> abrirMapaFullscreen());
+            btnExpandMap.setContentDescription("Expandir mapa a pantalla completa");
+        }
+
         cargarListas();
     }
 
@@ -308,34 +317,45 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
         clusterManager.clearItems();
         LatLngBounds.Builder bounds = new LatLngBounds.Builder();
         boolean hasBounds = false;
-        List<LatLng> poly = new ArrayList<>();
+        List<LatLng> routePoints = new ArrayList<>();
+
         // Pendientes
         if (pendientesLL != null) for (Solicitud s: pendientesLL){
             if (s.lat==null||s.lon==null) continue; LatLng p = new LatLng(s.lat,s.lon);
             clusterManager.addItem(new ZonaClusterItem(p, "Pendiente", shortDir(s.direccion), Tipo.PENDIENTE));
-            bounds.include(p); hasBounds=true; }
-        // Ruta
+            bounds.include(p); hasBounds=true;
+        }
+
+        // Ruta - recopilar puntos ordenados
         if (ruta != null) for (AsignacionDao.RutaPunto rp: ruta){
             if (rp.lat==null||rp.lon==null) continue; LatLng p = new LatLng(rp.lat,rp.lon);
             String title = "Parada "+ (rp.orden==null?"?":rp.orden);
             clusterManager.addItem(new ZonaClusterItem(p, title, shortDir(rp.direccion), Tipo.PARADA));
-            poly.add(p); bounds.include(p); hasBounds=true; }
-        if (poly.size()>=2) map.addPolyline(new PolylineOptions().addAll(poly).width(8f).color(0xFF2196F3));
-        // Recolectores
-        LatLng firstStop = poly.isEmpty()? null : poly.get(0);
+            routePoints.add(p); bounds.include(p); hasBounds=true;
+        }
+
+        // Dibujar ruta real usando Google Directions API
+        if (routePoints.size() >= 2) {
+            dibujarRutaReal(routePoints);
+        }
+
+        // Recolectores y conexión al primer punto
+        LatLng firstStop = routePoints.isEmpty()? null : routePoints.get(0);
         double bestDistKm = Double.MAX_VALUE; LatLng bestPos = null; int bestId = -1;
         if (recs != null) for (RecolectorDao.RecolectorPos r: recs){
             if (r.lat==null||r.lon==null) continue; LatLng pr = new LatLng(r.lat,r.lon);
             clusterManager.addItem(new ZonaClusterItem(pr, "Recolector #"+r.id, null, Tipo.RECOLECTOR));
             bounds.include(pr); hasBounds=true;
             if (firstStop!=null){
-                map.addPolyline(new PolylineOptions().add(pr, firstStop).width(6f).color(0xFF4CAF50));
+                // Usar ruta real para conectar recolector con primera parada
+                dibujarRutaRecolectorAPrimeraParada(pr, firstStop);
                 double d = TrackingService.haversine(pr.latitude, pr.longitude, firstStop.latitude, firstStop.longitude);
                 if (d < bestDistKm){ bestDistKm = d; bestPos = pr; bestId = r.id; }
             }
         }
         // Polígono y botón
         dibujarPoligonoZonaIfAny();
+
         // ETA
         if (tvInfoMini != null){
             if (bestPos != null){
@@ -346,6 +366,7 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
         }
         if (followEnabled && bestPos != null){ lastFollowLatLng = bestPos; followedRecolectorId = bestId; map.animateCamera(CameraUpdateFactory.newLatLng(bestPos)); }
         else if (bestPos != null){ lastFollowLatLng = bestPos; followedRecolectorId = bestId; }
+
         // Ajustar cámara
         if (hasBounds){
             try { map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds.build(), 120)); } catch (Exception ignore) {}
@@ -355,6 +376,130 @@ public class ZonaDetalleFragment extends Fragment implements OnMapReadyCallback 
         clusterManager.cluster();
     }
 
+    /**
+     * Dibuja una ruta real que sigue las calles entre múltiples puntos
+     */
+    private void dibujarRutaReal(List<LatLng> routePoints) {
+        if (routePoints.size() < 2) return;
+
+        // Si solo hay 2 puntos, hacer una ruta directa
+        if (routePoints.size() == 2) {
+            com.hfad.encomiendas.core.DirectionsHelper.getRoute(
+                routePoints.get(0),
+                routePoints.get(1),
+                new com.hfad.encomiendas.core.DirectionsHelper.DirectionsCallback() {
+                    @Override
+                    public void onRouteReady(PolylineOptions polylineOptions, String duration, String distance) {
+                        runOnUi(() -> {
+                            if (map != null) {
+                                map.addPolyline(polylineOptions);
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        Log.w("ZonaDetalle", "Error obteniendo ruta: " + error);
+                        // Fallback a línea recta
+                        runOnUi(() -> {
+                            if (map != null) {
+                                map.addPolyline(new PolylineOptions()
+                                    .addAll(routePoints)
+                                    .width(8f)
+                                    .color(0xFF2196F3)
+                                    .pattern(java.util.Arrays.asList(
+                                        new com.google.android.gms.maps.model.Dash(20),
+                                        new com.google.android.gms.maps.model.Gap(10)
+                                    )));
+                            }
+                        });
+                    }
+                }
+            );
+        } else {
+            // Para múltiples puntos, usar ruta optimizada
+            LatLng origin = routePoints.get(0);
+            LatLng destination = routePoints.get(routePoints.size() - 1);
+            List<LatLng> waypoints = routePoints.subList(1, routePoints.size() - 1);
+
+            com.hfad.encomiendas.core.DirectionsHelper.getOptimizedRoute(
+                origin, waypoints, destination,
+                new com.hfad.encomiendas.core.DirectionsHelper.DirectionsCallback() {
+                    @Override
+                    public void onRouteReady(PolylineOptions polylineOptions, String duration, String distance) {
+                        runOnUi(() -> {
+                            if (map != null) {
+                                map.addPolyline(polylineOptions);
+                                // Actualizar info con datos reales
+                                if (tvInfoMini != null) {
+                                    String currentText = tvInfoMini.getText().toString();
+                                    tvInfoMini.setText(currentText + " | Ruta: " + duration + " / " + distance);
+                                }
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        Log.w("ZonaDetalle", "Error obteniendo ruta optimizada: " + error);
+                        // Fallback a línea recta conectando todos los puntos
+                        runOnUi(() -> {
+                            if (map != null) {
+                                map.addPolyline(new PolylineOptions()
+                                    .addAll(routePoints)
+                                    .width(8f)
+                                    .color(0xFF2196F3)
+                                    .pattern(java.util.Arrays.asList(
+                                        new com.google.android.gms.maps.model.Dash(20),
+                                        new com.google.android.gms.maps.model.Gap(10)
+                                    )));
+                            }
+                        });
+                    }
+                }
+            );
+        }
+    }
+
+    /**
+     * Dibuja una ruta real desde la posición del recolector hasta la primera parada
+     */
+    private void dibujarRutaRecolectorAPrimeraParada(LatLng recolectorPos, LatLng primeraParada) {
+        com.hfad.encomiendas.core.DirectionsHelper.getRoute(
+            recolectorPos,
+            primeraParada,
+            new com.hfad.encomiendas.core.DirectionsHelper.DirectionsCallback() {
+                @Override
+                public void onRouteReady(PolylineOptions polylineOptions, String duration, String distance) {
+                    runOnUi(() -> {
+                        if (map != null) {
+                            // Personalizar la polyline para la ruta del recolector
+                            polylineOptions.width(6f).color(0xFF4CAF50);
+                            map.addPolyline(polylineOptions);
+                        }
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    Log.w("ZonaDetalle", "Error obteniendo ruta del recolector: " + error);
+                    // Fallback a línea recta punteada
+                    runOnUi(() -> {
+                        if (map != null) {
+                            map.addPolyline(new PolylineOptions()
+                                .add(recolectorPos, primeraParada)
+                                .width(6f)
+                                .color(0xFF4CAF50)
+                                .pattern(java.util.Arrays.asList(
+                                    new com.google.android.gms.maps.model.Dash(15),
+                                    new com.google.android.gms.maps.model.Gap(8)
+                                )));
+                        }
+                    });
+                }
+            }
+        );
+    }
     private String shortDir(String d) {
         if (TextUtils.isEmpty(d)) return "—";
         return d.length() <= 60 ? d : d.substring(0, 57) + "...";

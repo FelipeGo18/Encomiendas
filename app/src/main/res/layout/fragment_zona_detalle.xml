@@ -89,6 +89,17 @@
                     android:contentDescription="@string/follow_off"
                     app:srcCompat="@drawable/ic_recolector"/>
 
+                <!-- Botón para expandir mapa a pantalla completa -->
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/btnExpandMap"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|end"
+                    android:layout_margin="12dp"
+                    android:contentDescription="Expandir mapa a pantalla completa"
+                    app:srcCompat="@drawable/ic_fullscreen"
+                    app:fabSize="mini"/>
+
             </FrameLayout>
         </com.google.android.material.card.MaterialCardView>
 

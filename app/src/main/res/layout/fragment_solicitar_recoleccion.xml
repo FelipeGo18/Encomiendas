@@ -248,6 +248,22 @@
                         android:layout_height="wrap_content"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <!-- Slots sugeridos -->
+                <TextView
+                    android:id="@+id/tvSlotsTitulo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Franjas sugeridas"
+                    android:textStyle="bold"
+                    android:layout_marginTop="12dp"/>
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/cgSlots"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:singleSelection="true"
+                    app:selectionRequired="false"
+                    android:layout_marginTop="4dp"/>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

@@ -17,6 +17,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
@@ -164,7 +165,7 @@ public class RecoleccionMapaFragment extends Fragment implements OnMapReadyCallb
                             lastRecolectorLon = loc.lon;
                             if (getActivity()!=null) getActivity().runOnUiThread(() -> {
                                 pintarMarcadores(false);
-                                dibujarRutaSimple();
+                                dibujarRutaReal(); // Cambiar a ruta real
                                 actualizarStatus();
                             });
                         }
@@ -203,7 +204,7 @@ public class RecoleccionMapaFragment extends Fragment implements OnMapReadyCallb
                         if (DEBUG) Log.d(TAG, "✓ Ubicación actual del dispositivo obtenida: " + lastRecolectorLat + "," + lastRecolectorLon);
 
                         pintarMarcadores(false);
-                        dibujarRutaSimple();
+                        dibujarRutaReal();
                         actualizarStatus();
                     } else {
                         if (DEBUG) Log.w(TAG, "No se pudo obtener ubicación actual");
@@ -232,7 +233,7 @@ public class RecoleccionMapaFragment extends Fragment implements OnMapReadyCallb
             if (DEBUG) Log.d(TAG, "Usando posición de prueba para recolector: " + lastRecolectorLat + "," + lastRecolectorLon);
 
             pintarMarcadores(false);
-            dibujarRutaSimple();
+            dibujarRutaReal();
             actualizarStatus();
         }
     }
@@ -257,34 +258,94 @@ public class RecoleccionMapaFragment extends Fragment implements OnMapReadyCallb
 
         if (DEBUG) Log.d(TAG, "Pintando marcadores - recolector: " + lastRecolectorLat + "," + lastRecolectorLon + " destino: " + destinoLat + "," + destinoLon);
 
-        // Marcador del recolector (azul)
+        // Crear iconos personalizados usando IconUtils (mismos que en el mapa del asignador)
+        BitmapDescriptor iconRecolector = IconUtils.bitmapFromVector(requireContext(), R.drawable.ic_marker_recolector);
+        BitmapDescriptor iconDestino = IconUtils.bitmapFromVector(requireContext(), R.drawable.ic_marker_pendiente);
+
+        // Marcador del recolector (con icono personalizado)
         if (lastRecolectorLat != null && lastRecolectorLon != null) {
             LatLng posR = new LatLng(lastRecolectorLat, lastRecolectorLon);
             if (markerRecolector == null) {
                 markerRecolector = gMap.addMarker(new MarkerOptions()
                     .position(posR)
-                    .title("Recolector")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
+                    .title("🚛 Recolector")
+                    .snippet("Tu ubicación actual")
+                    .icon(iconRecolector));
             } else {
                 markerRecolector.setPosition(posR);
+                markerRecolector.setIcon(iconRecolector); // Actualizar icono también
             }
         }
 
-        // Marcador del destino (rojo)
+        // Marcador del destino (con icono personalizado)
         if (destinoLat != null && destinoLon != null) {
             LatLng posD = new LatLng(destinoLat, destinoLon);
             if (markerDestino == null) {
                 markerDestino = gMap.addMarker(new MarkerOptions()
                     .position(posD)
-                    .title("Punto de Recojo")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                    .title("📦 Punto de Recojo")
+                    .snippet("Destino de recolección")
+                    .icon(iconDestino));
+            } else {
+                markerDestino.setIcon(iconDestino); // Actualizar icono también
             }
         }
 
         if (force) centerCamera(false);
     }
 
-    // NUEVO: Método para dibujar ruta simple inmediatamente
+    // NUEVO: Método para dibujar ruta real usando DirectionsHelper
+    private void dibujarRutaReal() {
+        if (gMap == null || lastRecolectorLat == null || lastRecolectorLon == null || destinoLat == null || destinoLon == null) {
+            if (DEBUG) Log.w(TAG, "No se puede dibujar ruta real - faltan coordenadas");
+            return;
+        }
+
+        LatLng origen = new LatLng(lastRecolectorLat, lastRecolectorLon);
+        LatLng destino = new LatLng(destinoLat, destinoLon);
+
+        if (DEBUG) Log.d(TAG, "Obteniendo ruta real desde " + origen + " hasta " + destino);
+
+        com.hfad.encomiendas.core.DirectionsHelper.getRoute(
+            origen,
+            destino,
+            new com.hfad.encomiendas.core.DirectionsHelper.DirectionsCallback() {
+                @Override
+                public void onRouteReady(com.google.android.gms.maps.model.PolylineOptions polylineOptions, String duration, String distance) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            if (gMap != null) {
+                                // Remover ruta anterior
+                                if (routePolyline != null) {
+                                    routePolyline.remove();
+                                }
+
+                                // Personalizar la polyline para el recolector
+                                polylineOptions.width(10f).color(0xFF1976D2);
+                                routePolyline = gMap.addPolyline(polylineOptions);
+
+                                // Actualizar el status con información real
+                                actualizarStatusConRuta(duration, distance);
+
+                                if (DEBUG) Log.d(TAG, "✓ Ruta real dibujada: " + duration + " / " + distance);
+                            }
+                        });
+                    }
+                }
+
+                @Override
+                public void onError(String error) {
+                    if (DEBUG) Log.w(TAG, "Error obteniendo ruta real: " + error);
+                    // Fallback a línea recta punteada
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> dibujarRutaSimple());
+                    }
+                }
+            }
+        );
+    }
+
+    // NUEVO: Método mejorado para dibujar ruta simple como fallback
     private void dibujarRutaSimple() {
         if (gMap == null || lastRecolectorLat == null || lastRecolectorLon == null || destinoLat == null || destinoLon == null) {
             if (DEBUG) Log.w(TAG, "No se puede dibujar ruta simple - faltan coordenadas");
@@ -296,7 +357,7 @@ public class RecoleccionMapaFragment extends Fragment implements OnMapReadyCallb
             routePolyline.remove();
         }
 
-        // Crear línea recta simple INMEDIATAMENTE
+        // Crear línea recta punteada como fallback
         List<LatLng> puntos = new ArrayList<>();
         puntos.add(new LatLng(lastRecolectorLat, lastRecolectorLon));
         puntos.add(new LatLng(destinoLat, destinoLon));
@@ -304,11 +365,29 @@ public class RecoleccionMapaFragment extends Fragment implements OnMapReadyCallb
         PolylineOptions opts = new PolylineOptions()
             .width(8f)
             .color(0xFF1976D2) // Azul
-            .geodesic(true);
+            .geodesic(true)
+            .pattern(java.util.Arrays.asList(
+                new com.google.android.gms.maps.model.Dash(20),
+                new com.google.android.gms.maps.model.Gap(10)
+            ));
         opts.addAll(puntos);
 
         routePolyline = gMap.addPolyline(opts);
-        if (DEBUG) Log.d(TAG, "✓ Ruta simple dibujada inmediatamente con " + puntos.size() + " puntos");
+        if (DEBUG) Log.d(TAG, "✓ Ruta simple (fallback) dibujada con " + puntos.size() + " puntos");
+    }
+
+    // NUEVO: Actualizar status con información de ruta real
+    private void actualizarStatusConRuta(String duration, String distance) {
+        if (tvStatus == null) return;
+        String txt;
+        if (lastRecolectorLat != null && destinoLat != null) {
+            txt = String.format(Locale.getDefault(),
+                "📍 Recolector → Destino | ⏱️ %s | 📏 %s",
+                duration, distance);
+        } else {
+            txt = "Cargando ruta...";
+        }
+        tvStatus.setText(txt);
     }
 
     private void centerCamera(boolean animate) {

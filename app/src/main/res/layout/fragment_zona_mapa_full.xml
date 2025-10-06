@@ -31,9 +31,29 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
         android:layout_margin="12dp">
-        <TextView android:text="P" android:textColor="#FF9800" android:textStyle="bold" android:layout_marginEnd="16dp"/>
-        <TextView android:text="R" android:textColor="#2196F3" android:textStyle="bold" android:layout_marginEnd="16dp"/>
-        <TextView android:text="C" android:textColor="#4CAF50" android:textStyle="bold"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="P"
+            android:textColor="#FF9800"
+            android:textStyle="bold"
+            android:layout_marginEnd="16dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="R"
+            android:textColor="#2196F3"
+            android:textStyle="bold"
+            android:layout_marginEnd="16dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="C"
+            android:textColor="#4CAF50"
+            android:textStyle="bold"/>
     </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton

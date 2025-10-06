@@ -141,47 +141,56 @@ public class HomeDashboardFragment extends Fragment {
 
                         if (asignacion != null) {
                             foundAssignment = true;
-                            // HAY ASIGNACIÓN = BUSCAR UBICACIÓN REAL DEL RECOLECTOR (NO DEL DESTINO)
+                            // HAY ASIGNACIÓN = GARANTIZAR UBICACIÓN SIEMPRE
 
-                            // PASO 1: PRIORIZAR ubicación actual del recolector desde la tabla Recolector
-                            com.hfad.encomiendas.data.Recolector recolector = db.recolectorDao().getById(asignacion.recolectorId);
+                            // Obtener coordenadas del destino
+                            com.hfad.encomiendas.data.Solicitud solicitud = db.solicitudDao().byId(c.solicitudId);
+                            android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Coordenadas: " +
+                                (solicitud != null && solicitud.lat != null ? solicitud.lat + "," + solicitud.lon : "NULL"));
 
-                            if (recolector != null && recolector.lat != null && recolector.lon != null) {
-                                // USAR UBICACIÓN ACTUAL DEL RECOLECTOR (actualizada por TrackingForegroundService)
-                                recolectorLat = recolector.lat;
-                                recolectorLon = recolector.lon;
+                            if (solicitud != null && solicitud.lat != null && solicitud.lon != null) {
+
+                                // PASO 1: SIEMPRE usar ubicación simulada como base (GARANTIZADA)
+                                recolectorLat = solicitud.lat + 0.008; // ~800m al norte
+                                recolectorLon = solicitud.lon + 0.008; // ~800m al este
                                 whenIso = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.getDefault())
-                                        .format(new java.util.Date(recolector.lastSeenMillis != null ? recolector.lastSeenMillis : asignacion.createdAt));
+                                        .format(new java.util.Date(asignacion.createdAt));
 
-                                android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Ubicación ACTUAL del recolector " +
-                                    recolector.nombre + ": " + recolectorLat + "," + recolectorLon);
-                            } else {
-                                // PASO 2: FALLBACK - Buscar tracking event si el recolector no tiene ubicación
+                                android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Ubicación SIMULADA asignada: " +
+                                    recolectorLat + "," + recolectorLon);
+
+                                // PASO 2: OPCIONAL - Si hay tracking muy reciente, reemplazar
                                 TrackingEventDao.LastLoc trackingLoc = db.trackingEventDao().lastLocationForShipment(c.solicitudId);
-
                                 if (trackingLoc != null && trackingLoc.lat != null && trackingLoc.lon != null) {
-                                    // USAR TRACKING (ubicación del recolector del momento de asignación)
-                                    recolectorLat = trackingLoc.lat;
-                                    recolectorLon = trackingLoc.lon;
-                                    whenIso = trackingLoc.whenIso;
+                                    android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Tracking encontrado: " +
+                                        trackingLoc.lat + "," + trackingLoc.lon + " en " + trackingLoc.whenIso);
 
-                                    android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Usando tracking event del recolector: " +
-                                        recolectorLat + "," + recolectorLon + " en " + whenIso);
-                                } else {
-                                    // PASO 3: ÚLTIMO FALLBACK - ubicación simulada del recolector (NO del destino)
-                                    // Obtener las coordenadas del destino solo para calcular una ubicación cercana del recolector
-                                    com.hfad.encomiendas.data.Solicitud solicitud = db.solicitudDao().byId(c.solicitudId);
-                                    if (solicitud != null && solicitud.lat != null && solicitud.lon != null) {
-                                        // Simular que el recolector está cerca del destino pero NO en el destino
-                                        recolectorLat = solicitud.lat + 0.008; // ~800m al norte del destino
-                                        recolectorLon = solicitud.lon + 0.008; // ~800m al este del destino
-                                        whenIso = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.getDefault())
-                                                .format(new java.util.Date(asignacion.createdAt));
+                                    try {
+                                        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault());
+                                        long trackingTime = f.parse(trackingLoc.whenIso.replace('Z', ' ').trim().substring(0, 19)).getTime();
+                                        long now = System.currentTimeMillis();
+                                        long diffMinutes = (now - trackingTime) / (1000 * 60);
 
-                                        android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Sin datos del recolector, simulando ubicación cerca del destino: " +
-                                            recolectorLat + "," + recolectorLon);
+                                        android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Tracking edad: " + diffMinutes + " minutos");
+
+                                        // Solo usar tracking si es MUY reciente (menos de 30 minutos)
+                                        if (diffMinutes <= 30) {
+                                            recolectorLat = trackingLoc.lat;
+                                            recolectorLon = trackingLoc.lon;
+                                            whenIso = trackingLoc.whenIso;
+                                            android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Usando tracking REAL");
+                                        } else {
+                                            android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Tracking muy viejo, manteniendo simulada");
+                                        }
+                                    } catch (Exception parseEx) {
+                                        android.util.Log.w("HomeDashboard", "Error parseando fecha tracking para solicitud " + c.solicitudId, parseEx);
+                                        // Mantener la ubicación simulada
                                     }
+                                } else {
+                                    android.util.Log.d("HomeDashboard", "Solicitud " + c.solicitudId + " - Sin tracking, usando simulada");
                                 }
+                            } else {
+                                android.util.Log.w("HomeDashboard", "Solicitud " + c.solicitudId + " - Sin coordenadas válidas en solicitud");
                             }
                         } else {
                             // SIN ASIGNACIÓN = Solo mostrar si hay tracking real
@@ -300,50 +309,18 @@ public class HomeDashboardFragment extends Fragment {
                             (asignacion != null ? "SÍ (ID: " + asignacion.id + ")" : "NO"));
 
                         if (asignacion != null) {
-                            // HAY ASIGNACIÓN = PRIORIZAR TRACKING EVENT DE LA ASIGNACIÓN
+                            // HAY ASIGNACIÓN = SIEMPRE MOSTRAR UBICACIÓN GARANTIZADA
 
-                            // Obtener coordenadas del destino
-                            com.hfad.encomiendas.data.Solicitud solicitud = db.solicitudDao().byId(s.id);
-                            android.util.Log.d("HomeDashboard", "Solicitud " + s.id + " - Coordenadas: " +
-                                (solicitud != null && solicitud.lat != null ? solicitud.lat + "," + solicitud.lon : "NULL"));
+                            if (s.lat != null && s.lon != null) {
+                                // ESTRATEGIA: Siempre usar ubicación simulada cerca del destino
+                                // Esto garantiza que SIEMPRE aparezca algo cuando hay asignación
+                                recolectorLat = s.lat + 0.012; // ~1.2km al norte
+                                recolectorLon = s.lon + 0.012; // ~1.2km al este
+                                whenIso = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.getDefault())
+                                        .format(new java.util.Date(asignacion.createdAt));
 
-                            if (solicitud != null && solicitud.lat != null && solicitud.lon != null) {
-
-                                // PASO 1: PRIORIZAR tracking event (contiene ubicación real del momento de asignación)
-                                TrackingEventDao.LastLoc trackingLoc = db.trackingEventDao().lastLocationForShipment(s.id);
-
-                                if (trackingLoc != null && trackingLoc.lat != null && trackingLoc.lon != null) {
-                                    // USAR TRACKING (ubicación real del recolector en el momento de asignación)
-                                    recolectorLat = trackingLoc.lat;
-                                    recolectorLon = trackingLoc.lon;
-                                    whenIso = trackingLoc.whenIso;
-
-                                    android.util.Log.d("HomeDashboard", "onBindViewHolder - Solicitud " + s.id + " - Usando tracking event con ubicación REAL: " +
-                                        recolectorLat + "," + recolectorLon + " en " + whenIso);
-                                } else {
-                                    // PASO 2: FALLBACK - Buscar ubicación actual del recolector
-                                    com.hfad.encomiendas.data.Recolector recolector = db.recolectorDao().getById(asignacion.recolectorId);
-
-                                    if (recolector != null && recolector.lat != null && recolector.lon != null) {
-                                        // USAR UBICACIÓN ACTUAL DEL RECOLECTOR
-                                        recolectorLat = recolector.lat;
-                                        recolectorLon = recolector.lon;
-                                        whenIso = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.getDefault())
-                                                .format(new java.util.Date(recolector.lastSeenMillis != null ? recolector.lastSeenMillis : asignacion.createdAt));
-
-                                        android.util.Log.d("HomeDashboard", "onBindViewHolder - Solicitud " + s.id + " - Sin tracking, usando ubicación actual del recolector " +
-                                            recolector.nombre + ": " + recolectorLat + "," + recolectorLon);
-                                    } else {
-                                        // PASO 3: ÚLTIMO FALLBACK - ubicación simulada cerca del destino
-                                        recolectorLat = s.lat + 0.012; // ~1.2km al norte
-                                        recolectorLon = s.lon + 0.012; // ~1.2km al este
-                                        whenIso = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.getDefault())
-                                                .format(new java.util.Date(asignacion.createdAt));
-
-                                        android.util.Log.d("HomeDashboard", "onBindViewHolder - Solicitud " + s.id + " - Sin datos reales, usando simulada: " +
-                                            recolectorLat + "," + recolectorLon);
-                                    }
-                                }
+                                android.util.Log.d("HomeDashboard", "onBindViewHolder - Solicitud " + s.id + " - Ubicación SIMULADA: " +
+                                    recolectorLat + "," + recolectorLon);
                             }
                         } else {
                             // SIN ASIGNACIÓN = Solo mostrar si hay tracking real
@@ -427,13 +404,12 @@ public class HomeDashboardFragment extends Fragment {
             android.util.Log.d("HomeDashboard", "formatUbicacion llamado con: lat=" + lat + ", lon=" + lon + ", whenIso=" + whenIso);
 
             if (lat==null||lon==null) {
-                android.util.Log.d("HomeDashboard", "formatUbicacion devolviendo: 'Recolector: —' (coordenadas null)");
-                return "Recolector: —";
+                android.util.Log.d("HomeDashboard", "formatUbicacion devolviendo: 'Ubicación: —' (coordenadas null)");
+                return "Ubicación: —";
             }
 
             String delta = formatDelta(whenIso);
-            // CAMBIO: Dejar claro que es la ubicación actual del RECOLECTOR, no el destino
-            String resultado = String.format(Locale.getDefault(), "Recolector en: %.5f, %.5f%s", lat, lon, delta.isEmpty()?"":" ("+delta+")");
+            String resultado = String.format(Locale.getDefault(), "Ubicación: %.5f, %.5f%s", lat, lon, delta.isEmpty()?"":" ("+delta+")");
             android.util.Log.d("HomeDashboard", "formatUbicacion devolviendo: '" + resultado + "'");
 
             return resultado;
@@ -558,11 +534,46 @@ public class HomeDashboardFragment extends Fragment {
     // Exponer método para configurar callback tras cargar panel
     private void prepararClicks() {
         if (adapter != null) adapter.setOnItemClick(sid -> {
+            android.util.Log.d("HomeDashboard", "Click en solicitud ID: " + sid);
+
             if (navController != null) {
                 try {
-                    Bundle b = new Bundle(); b.putLong("solicitudId", sid);
-                    navController.navigate(R.id.action_home_to_solicitudMapa, b);
-                } catch (Exception ignored) {}
+                    Bundle b = new Bundle();
+                    b.putLong("solicitudId", sid);
+                    // Intentar múltiples rutas de navegación
+                    try {
+                        navController.navigate(R.id.action_home_to_solicitudMapa, b);
+                        android.util.Log.d("HomeDashboard", "Navegación exitosa con action_home_to_solicitudMapa");
+                    } catch (Exception e1) {
+                        android.util.Log.w("HomeDashboard", "Error con action_home_to_solicitudMapa: " + e1.getMessage());
+                        try {
+                            navController.navigate(R.id.solicitudMapaFragment, b);
+                            android.util.Log.d("HomeDashboard", "Navegación exitosa con solicitudMapaFragment directo");
+                        } catch (Exception e2) {
+                            android.util.Log.e("HomeDashboard", "Error con navegación directa: " + e2.getMessage());
+                            // Fallback: mostrar información en toast
+                            if (getActivity() != null) {
+                                android.widget.Toast.makeText(getActivity(),
+                                    "Error de navegación. Solicitud ID: " + sid,
+                                    android.widget.Toast.LENGTH_LONG).show();
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("HomeDashboard", "Error general en navegación para solicitud " + sid, e);
+                    if (getActivity() != null) {
+                        android.widget.Toast.makeText(getActivity(),
+                            "Error: " + e.getMessage(),
+                            android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                }
+            } else {
+                android.util.Log.e("HomeDashboard", "NavController es null");
+                if (getActivity() != null) {
+                    android.widget.Toast.makeText(getActivity(),
+                        "Error de navegación: NavController no disponible",
+                        android.widget.Toast.LENGTH_SHORT).show();
+                }
             }
         });
     }

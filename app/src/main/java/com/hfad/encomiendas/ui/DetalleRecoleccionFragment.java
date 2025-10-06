@@ -304,7 +304,6 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
                     // Si el mapa ya está listo y ahora tenemos coords, pintar markers / ruta
                     if (googleMap!=null && destinoOk) {
                         pintarMarcadores(true);
-                        intentarRuta();
                     }
                     refreshTimelineAndEta();
                 });
@@ -442,7 +441,7 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
         if (destinoLat != null && destinoLon != null) {
             if (DEBUG) Log.d(TAG, "Mapa listo y ya tenemos destino, pintando marcadores");
             pintarMarcadores(true);
-            intentarRuta();
+            // Ruta se dibuja automáticamente desde pintarMarcadores()
         }
 
         cargarUltimaUbicacionRecolector(true);
@@ -467,7 +466,7 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
                             lastRecolectorLon = loc.lon;
                             runOnUi(() -> {
                                 pintarMarcadores(moveCamera);
-                                intentarRuta();
+                                // Ruta se dibuja automáticamente desde pintarMarcadores()
                             });
                         }
                     } else {
@@ -480,7 +479,6 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
                                     lastRecolectorLon = destinoLon + 0.015;
                                     if (DEBUG) Log.d(TAG, "Usando posición de prueba para mini-mapa: " + lastRecolectorLat + "," + lastRecolectorLon);
                                     pintarMarcadores(moveCamera);
-                                    intentarRuta();
                                 }
                             }
                         });
@@ -492,11 +490,8 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
         }
     }
 
-    private void pintarMarcadores(boolean forceMove){
-        if (googleMap==null) {
-            if (DEBUG) Log.w(TAG, "pintarMarcadores: googleMap es null");
-            return;
-        }
+    private void pintarMarcadores(boolean forceMove) {
+        if (googleMap == null) return;
 
         if (DEBUG) Log.d(TAG, "Pintando marcadores - recolector: " + lastRecolectorLat + "," + lastRecolectorLon + " destino: " + destinoLat + "," + destinoLon);
 
@@ -510,30 +505,38 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
             }
         }
 
-        // Marcador del recolector (azul) - SIEMPRE mostrar
+        // Crear iconos personalizados usando IconUtils (mismos que en el mapa de pantalla completa)
+        com.google.android.gms.maps.model.BitmapDescriptor iconRecolector = IconUtils.bitmapFromVector(requireContext(), R.drawable.ic_marker_recolector);
+        com.google.android.gms.maps.model.BitmapDescriptor iconDestino = IconUtils.bitmapFromVector(requireContext(), R.drawable.ic_marker_pendiente);
+
+        // Marcador del recolector (con icono personalizado) - SIEMPRE mostrar
         if (lastRecolectorLat != null && lastRecolectorLon != null) {
             LatLng p = new LatLng(lastRecolectorLat, lastRecolectorLon);
             if (markerRecolector == null) {
                 markerRecolector = googleMap.addMarker(new MarkerOptions()
                     .position(p)
-                    .title("Recolector")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
+                    .title("🚛 Recolector")
+                    .snippet("Tu ubicación actual")
+                    .icon(iconRecolector));
             } else {
                 markerRecolector.setPosition(p);
+                markerRecolector.setIcon(iconRecolector);
             }
             if (DEBUG) Log.d(TAG, "Marcador recolector pintado en: " + lastRecolectorLat + "," + lastRecolectorLon);
         }
 
-        // Marcador del destino (rojo) - SIEMPRE mostrar
+        // Marcador del destino (con icono personalizado) - SIEMPRE mostrar
         if (destinoLat != null && destinoLon != null) {
             LatLng d = new LatLng(destinoLat, destinoLon);
             if (markerDestino == null) {
                 markerDestino = googleMap.addMarker(new MarkerOptions()
                     .position(d)
-                    .title("Punto de Recojo")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                    .title("📦 Punto de Recojo")
+                    .snippet("Destino de recolección")
+                    .icon(iconDestino));
             } else {
                 markerDestino.setPosition(d);
+                markerDestino.setIcon(iconDestino);
             }
             if (DEBUG) Log.d(TAG, "Marcador destino pintado en: " + destinoLat + "," + destinoLon);
         }
@@ -541,10 +544,8 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
         // FORZAR dibujo de ruta inmediatamente después de pintar marcadores
         if (lastRecolectorLat != null && lastRecolectorLon != null && destinoLat != null && destinoLon != null) {
             if (DEBUG) Log.d(TAG, "Forzando dibujo de ruta inmediatamente");
-            // Dibujar ruta simple inmediatamente (línea recta)
-            dibujarRutaSimple();
-            // Luego intentar ruta con API
-            intentarRutaConAPI();
+            // Dibujar ruta usando DirectionsHelper (misma lógica que pantalla completa)
+            dibujarRutaReal();
         }
 
         if (forceMove) {
@@ -563,7 +564,55 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
         }
     }
 
-    // Nuevo método para dibujar ruta simple inmediatamente
+    // NUEVO: Método para dibujar ruta real usando DirectionsHelper (CORREGIDO para vista previa)
+    private void dibujarRutaReal() {
+        if (googleMap == null || lastRecolectorLat == null || lastRecolectorLon == null || destinoLat == null || destinoLon == null) {
+            if (DEBUG) Log.w(TAG, "No se puede dibujar ruta real - faltan coordenadas");
+            return;
+        }
+
+        LatLng origen = new LatLng(lastRecolectorLat, lastRecolectorLon);
+        LatLng destino = new LatLng(destinoLat, destinoLon);
+
+        if (DEBUG) Log.d(TAG, "Vista previa: Obteniendo ruta real desde " + origen + " hasta " + destino);
+
+        // Primero dibujar una ruta simple inmediatamente para que el usuario vea algo
+        //dibujarRutaSimple();
+
+        // Luego intentar obtener la ruta real
+        com.hfad.encomiendas.core.DirectionsHelper.getRoute(
+            origen,
+            destino,
+            new com.hfad.encomiendas.core.DirectionsHelper.DirectionsCallback() {
+                @Override
+                public void onRouteReady(com.google.android.gms.maps.model.PolylineOptions polylineOptions, String duration, String distance) {
+                    if (getActivity() != null && isAdded()) {
+                        getActivity().runOnUiThread(() -> {
+                            if (googleMap != null) {
+                                // Remover ruta anterior (simple)
+                                if (routePolyline != null) {
+                                    routePolyline.remove();
+                                }
+
+                                // Personalizar la polyline para el recolector (EXACTAMENTE como pantalla completa)
+                                polylineOptions.width(10f).color(0xFF1976D2);
+                                routePolyline = googleMap.addPolyline(polylineOptions);
+
+                                if (DEBUG) Log.d(TAG, "✓ Vista previa: Ruta real dibujada: " + duration + " / " + distance);
+                            }
+                        });
+                    }
+                }
+
+                @Override
+                public void onError(String error) {
+                    if (DEBUG) Log.w(TAG, "Vista previa: Error obteniendo ruta real: " + error);
+                    // Ya tenemos la ruta simple dibujada, no hacemos nada más
+                }
+            }
+        );
+    }
+
     private void dibujarRutaSimple() {
         if (googleMap == null || lastRecolectorLat == null || lastRecolectorLon == null || destinoLat == null || destinoLon == null) {
             if (DEBUG) Log.w(TAG, "No se puede dibujar ruta simple - faltan datos");
@@ -575,7 +624,7 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
             routePolyline.remove();
         }
 
-        // Crear línea recta simple
+        // Crear línea recta punteada como fallback
         List<LatLng> puntos = new ArrayList<>();
         puntos.add(new LatLng(lastRecolectorLat, lastRecolectorLon));
         puntos.add(new LatLng(destinoLat, destinoLon));
@@ -583,117 +632,15 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
         PolylineOptions opts = new PolylineOptions()
             .width(6f)
             .color(0xFF1976D2) // Azul
-            .geodesic(true);
+            .geodesic(true)
+            .pattern(java.util.Arrays.asList(
+                new com.google.android.gms.maps.model.Dash(15),
+                new com.google.android.gms.maps.model.Gap(8)
+            ));
         opts.addAll(puntos);
 
         routePolyline = googleMap.addPolyline(opts);
-        if (DEBUG) Log.d(TAG, "Ruta simple dibujada: " + puntos.size() + " puntos");
-    }
-
-    // Método separado para intentar ruta con API (opcional)
-    private void intentarRutaConAPI() {
-        if (googleMap == null || destinoLat == null || destinoLon == null || lastRecolectorLat == null || lastRecolectorLon == null) return;
-
-        if (routeRequested) return;
-        routeRequested = true;
-
-        final double oLat = lastRecolectorLat, oLon = lastRecolectorLon, dLat = destinoLat, dLon = destinoLon;
-        Executors.newSingleThreadExecutor().execute(() -> fetchRoute(oLat, oLon, dLat, dLon));
-    }
-
-    private void intentarRuta() {
-        // Este método ahora solo llama a dibujarRutaSimple para garantizar que SIEMPRE haya una línea
-        if (DEBUG) Log.d(TAG, "intentarRuta llamado");
-        dibujarRutaSimple();
-    }
-
-    private void fetchRoute(double oLat,double oLon,double dLat,double dLon){
-        List<LatLng> decoded=null;
-        String key = BuildConfig.MAPS_API_KEY;
-        boolean canCall = key!=null && !key.trim().isEmpty();
-        if (canCall){
-            String urlStr = String.format(Locale.US, "https://maps.googleapis.com/maps/api/directions/json?origin=%f,%f&destination=%f,%f&mode=driving&key=%s", oLat,oLon,dLat,dLon,key);
-            HttpURLConnection conn=null;
-            try {
-                URL url = new URL(urlStr);
-                conn=(HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(10000);
-                conn.connect();
-                if (conn.getResponseCode()==200){
-                    InputStream is=conn.getInputStream();
-                    BufferedReader br=new BufferedReader(new InputStreamReader(is));
-                    StringBuilder sb=new StringBuilder();
-                    String line;
-                    while((line=br.readLine())!=null) sb.append(line);
-                    JSONObject root=new JSONObject(sb.toString());
-                    JSONArray routes = root.optJSONArray("routes");
-                    if (routes!=null && routes.length()>0){
-                        JSONObject r0 = routes.getJSONObject(0);
-                        JSONObject poly = r0.getJSONObject("overview_polyline");
-                        String pts = poly.getString("points");
-                        decoded = decodePolyline(pts);
-                    }
-                }
-            } catch (Exception e){
-                Log.w(TAG,"Directions fallback", e);
-            } finally {
-                if (conn!=null) conn.disconnect();
-            }
-        }
-        if (decoded==null || decoded.isEmpty()){
-            decoded=new ArrayList<>();
-            decoded.add(new LatLng(oLat,oLon));
-            decoded.add(new LatLng(dLat,dLon));
-        }
-        List<LatLng> finalDecoded = decoded;
-        runOnUi(() -> drawRoute(finalDecoded,oLat,oLon));
-    }
-
-    private void drawRoute(List<LatLng> points,double fromLat,double fromLon){
-        routeRequested=false;
-        routeFromLat=fromLat;
-        routeFromLon=fromLon;
-        if (googleMap==null || points==null || points.isEmpty()) return;
-        if (routePolyline!=null) routePolyline.remove();
-
-        PolylineOptions opts = new PolylineOptions()
-            .width(8f)
-            .color(0xFF1976D2)
-            .geodesic(true);
-        opts.addAll(points);
-        routePolyline=googleMap.addPolyline(opts);
-
-        if (DEBUG) Log.d(TAG, "Ruta dibujada con " + points.size() + " puntos");
-    }
-
-    private List<LatLng> decodePolyline(String encoded){
-        List<LatLng> poly=new ArrayList<>();
-        int index=0,len=encoded.length();
-        int lat=0,lng=0;
-        while(index<len){
-            int b,shift=0,result=0;
-            do {
-                b=encoded.charAt(index++)-63;
-                result|=(b & 0x1f)<<shift;
-                shift+=5;
-            } while(b>=0x20);
-            int dlat=((result & 1)!=0 ? ~(result>>1):(result>>1));
-            lat+=dlat;
-            shift=0;
-            result=0;
-            do {
-                b=encoded.charAt(index++)-63;
-                result|=(b & 0x1f)<<shift;
-                shift+=5;
-            } while(b>=0x20);
-            int dlng=((result & 1)!=0 ? ~(result>>1):(result>>1));
-            lng+=dlng;
-            double latD=lat/1E5;
-            double lonD=lng/1E5;
-            poly.add(new LatLng(latD,lonD));
-        }
-        return poly;
+        if (DEBUG) Log.d(TAG, "✓ Ruta simple (fallback) dibujada en vista previa: " + puntos.size() + " puntos");
     }
 
     private void abrirMapaCompleto(){
@@ -851,7 +798,6 @@ public class DetalleRecoleccionFragment extends Fragment implements OnMapReadyCa
                             lastRecolectorLon = loc.getLongitude();
                             if (googleMap != null) {
                                 pintarMarcadores(true);
-                                intentarRuta();
                             }
                         }
                     })

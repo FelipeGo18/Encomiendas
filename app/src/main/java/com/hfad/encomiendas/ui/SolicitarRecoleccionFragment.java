@@ -23,6 +23,8 @@ import com.google.android.libraries.places.api.model.Place;
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment;
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
@@ -30,6 +32,8 @@ import com.hfad.encomiendas.BuildConfig;
 import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.core.SessionManager;
 import com.hfad.encomiendas.data.AppDatabase;
+import com.hfad.encomiendas.data.Slot;
+import com.hfad.encomiendas.data.SlotDao;
 import com.hfad.encomiendas.data.Solicitud;
 
 import java.text.SimpleDateFormat;
@@ -75,6 +79,9 @@ public class SolicitarRecoleccionFragment extends Fragment {
     private long selectedDateMillis = 0L;
     private int startHour = -1, startMinute = -1, endHour = -1, endMinute = -1;
 
+    // ---- UI: Slots ----
+    private ChipGroup cgSlots; // nuevo
+
     public SolicitarRecoleccionFragment() {}
 
     @Nullable @Override
@@ -115,6 +122,7 @@ public class SolicitarRecoleccionFragment extends Fragment {
         etIndicaciones  = v.findViewById(R.id.etIndicaciones);
 
         btnSolicitar = v.findViewById(R.id.btnSolicitar);
+        cgSlots = v.findViewById(R.id.cgSlots);
 
         if (etTamanoPaquete != null) {
             etTamanoPaquete.setSimpleItems(R.array.tipos_producto);
@@ -309,9 +317,39 @@ public class SolicitarRecoleccionFragment extends Fragment {
                 com.hfad.encomiendas.data.User u = db.userDao().findByEmail(email);
                 long remitenteId = (u == null) ? 0L : u.id;
 
+                // === Reserva / creación de slot ===
+                String fechaClave = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date(selectedDateMillis));
+                int inicioMin = startHour * 60 + (startMinute < 0 ? 0 : startMinute);
+                int finMin    = endHour   * 60 + (endMinute   < 0 ? 0 : endMinute);
+                SlotDao slotDao = db.slotDao();
+                Long zonaId = null; // TODO: enlazar con zoneId real si se selecciona zona
+                Slot slot = slotDao.findSlot(fechaClave, inicioMin, finMin, zonaId);
+                long nowTs = System.currentTimeMillis();
+                if (slot == null) {
+                    Slot sNew = new Slot();
+                    sNew.fecha = fechaClave;
+                    sNew.inicioMin = inicioMin;
+                    sNew.finMin = finMin;
+                    sNew.capacidadMax = 20; // capacidad default; TODO parametrizar
+                    sNew.ocupadas = 0;
+                    sNew.zonaId = zonaId;
+                    sNew.createdAt = nowTs;
+                    sNew.updatedAt = null;
+                    long newId = slotDao.insert(sNew);
+                    slot = slotDao.findSlot(fechaClave, inicioMin, finMin, zonaId);
+                    if (slot == null) throw new IllegalStateException("No se pudo crear slot");
+                }
+                // Intentar ocupar cupo
+                int updated = slotDao.tryIncrement(slot.id, nowTs);
+                if (updated == 0) {
+                    runOnUi(() -> toast("Franja llena, elige otra"));
+                    return;
+                }
+
                 Solicitud s = new Solicitud();
                 s.remitenteId = remitenteId;
                 s.recolectorId = null;
+                s.slotId = slot.id; // vincular slot reservado
 
                 // principal = origen
                 s.direccion = dirOrigen;
@@ -323,7 +361,6 @@ public class SolicitarRecoleccionFragment extends Fragment {
                 s.pesoKg = null; s.volumenM3 = null;
 
                 s.lat = latOrigen; s.lon = lonOrigen;
-
                 s.guia = generarGuia();
                 s.estado = "PENDIENTE";
                 s.notas  = meta.length()==0 && isEmpty(indic) ? null : notasFinal;
@@ -354,6 +391,7 @@ public class SolicitarRecoleccionFragment extends Fragment {
                         selectedDateMillis = chosen.getTimeInMillis();
                         et.setText(new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                                 .format(new Date(selectedDateMillis)));
+                        refreshSlotChips();
                     },
                     c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)
             );
@@ -438,6 +476,51 @@ public class SolicitarRecoleccionFragment extends Fragment {
         if (etHoraHasta != null)      etHoraHasta.setText("");
 
         selectedDateMillis = 0L; startHour = startMinute = endHour = endMinute = -1;
+    }
+
+    private void refreshSlotChips(){
+        if (cgSlots == null) return;
+        cgSlots.removeAllViews();
+        if (selectedDateMillis == 0L) return;
+        String fechaClave = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date(selectedDateMillis));
+        int[][] sugeridas = { {8,10}, {10,12}, {12,14}, {14,16}, {16,18} };
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(requireContext());
+                SlotDao dao = db.slotDao();
+                java.util.List<Slot> existentes = dao.listByFecha(fechaClave);
+                runOnUi(() -> {
+                    for (int[] rango : sugeridas) {
+                        int iniH = rango[0]; int finH = rango[1];
+                        int iniMin = iniH*60; int finMin = finH*60;
+                        Slot match = null;
+                        if (existentes != null) {
+                            for (Slot s : existentes) {
+                                if (s.inicioMin == iniMin && s.finMin == finMin) { match = s; break; }
+                            }
+                        }
+                        int cap = (match==null?20:match.capacidadMax);
+                        int occ = (match==null?0:match.ocupadas);
+                        Chip chip = new Chip(requireContext());
+                        chip.setCheckable(true);
+                        chip.setText(String.format(Locale.getDefault(), "%02d:00-%02d:00 (%d/%d)", iniH, finH, occ, cap));
+                        chip.setTag(iniH+"-"+finH);
+                        if (match != null && occ >= cap) {
+                            chip.setEnabled(false);
+                            chip.setAlpha(0.5f);
+                        }
+                        chip.setOnClickListener(v -> {
+                            if (!chip.isEnabled()) return;
+                            startHour = iniH; startMinute = 0;
+                            endHour = finH; endMinute = 0;
+                            if (etHoraDesde != null) etHoraDesde.setText(formatTime12(startHour, startMinute));
+                            if (etHoraHasta != null) etHoraHasta.setText(formatTime12(endHour, endMinute));
+                        });
+                        cgSlots.addView(chip);
+                    }
+                });
+            } catch (Exception ignore) {}
+        });
     }
 
     private static String firstNonEmpty(String... xs) {

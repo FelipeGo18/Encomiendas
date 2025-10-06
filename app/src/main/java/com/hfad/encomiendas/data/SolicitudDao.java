@@ -45,16 +45,16 @@ public interface SolicitudDao {
     @Query("SELECT * FROM Solicitud WHERE recolectorId=:recolectorId AND estado=:estado ORDER BY ventanaInicioMillis ASC")
     List<Solicitud> listByRecolectorAndEstado(int recolectorId, String estado);
 
-    // Listar por fecha (YYYY-MM-DD)
+    // Listar solicitudes por fecha
     @Query("SELECT * FROM Solicitud " +
-            "WHERE date(ventanaInicioMillis/1000,'unixepoch','localtime') = :fecha " +
+            "WHERE strftime('%Y-%m-%d', ventanaInicioMillis/1000, 'unixepoch', 'localtime') = :fecha " +
             "ORDER BY ventanaInicioMillis ASC")
     List<Solicitud> listByFecha(String fecha);
 
     // Conteo de pendientes por fecha
     @Query("SELECT COUNT(*) FROM Solicitud " +
             "WHERE estado = 'PENDIENTE' " +
-            "AND date(ventanaInicioMillis/1000,'unixepoch','localtime') = :fecha")
+            "AND strftime('%Y-%m-%d', ventanaInicioMillis/1000, 'unixepoch', 'localtime') = :fecha")
     int countUnassignedByFecha(String fecha);
 
     // Pendientes por zona (zona viene en 'notas' como 'Zona: <valor>.')
@@ -68,7 +68,7 @@ public interface SolicitudDao {
             "COUNT(s.id) AS pendientes " +
             "FROM Solicitud s " +
             "WHERE s.estado = 'PENDIENTE' " +
-            "AND date(s.ventanaInicioMillis/1000,'unixepoch','localtime') = :fecha " +
+            "AND strftime('%Y-%m-%d', s.ventanaInicioMillis/1000, 'unixepoch', 'localtime') = :fecha " +
             "GROUP BY zona " +
             "ORDER BY pendientes DESC")
     List<ZonaPendiente> countPendientesPorZona(String fecha);
@@ -88,7 +88,7 @@ public interface SolicitudDao {
             "strftime('%H:%M', s.ventanaFinMillis/1000,  'unixepoch','localtime') AS horaHasta " +
             "FROM Solicitud s " +
             "WHERE s.estado = 'PENDIENTE' " +
-            "AND date(s.ventanaInicioMillis/1000,'unixepoch','localtime') = :fecha " +
+            "AND strftime('%Y-%m-%d', s.ventanaInicioMillis/1000, 'unixepoch', 'localtime') = :fecha " +
             "AND LOWER( TRIM(CASE WHEN INSTR(LOWER(s.notas),'zona: ')>0 " +
             "     THEN SUBSTR(s.notas, INSTR(LOWER(s.notas),'zona: ')+6, " +
             "          CASE WHEN INSTR(SUBSTR(s.notas, INSTR(LOWER(s.notas),'zona: ')+6), '.')>0 " +
@@ -114,7 +114,7 @@ public interface SolicitudDao {
             "strftime('%H:%M', s.ventanaFinMillis/1000,  'unixepoch','localtime') AS horaHasta " +
             "FROM Solicitud s " +
             "WHERE s.estado = 'PENDIENTE' " +
-            "AND date(s.ventanaInicioMillis/1000,'unixepoch','localtime') = :fecha " +
+            "AND strftime('%Y-%m-%d', s.ventanaInicioMillis/1000, 'unixepoch', 'localtime') = :fecha " +
             "AND LOWER( TRIM(CASE WHEN INSTR(LOWER(s.notas),'zona: ')>0 " +
             "     THEN SUBSTR(s.notas, INSTR(LOWER(s.notas),'zona: ')+6, " +
             "          CASE WHEN INSTR(SUBSTR(s.notas, INSTR(LOWER(s.notas),'zona: ')+6), '.')>0 " +
@@ -129,7 +129,7 @@ public interface SolicitudDao {
             "FROM Solicitud s " +
             "LEFT JOIN asignaciones a ON a.solicitudId = s.id " +
             "WHERE s.estado = 'PENDIENTE' " +
-            "AND date(s.ventanaInicioMillis/1000,'unixepoch','localtime') = :fecha " +
+            "AND strftime('%Y-%m-%d', s.ventanaInicioMillis/1000, 'unixepoch', 'localtime') = :fecha " +
             "AND ( :zona = '' OR " +
             "      LOWER( TRIM(CASE WHEN INSTR(LOWER(s.notas),'zona: ')>0 " +
             "           THEN SUBSTR(s.notas, INSTR(LOWER(s.notas),'zona: ')+6, " +
@@ -146,7 +146,7 @@ public interface SolicitudDao {
     @Query("SELECT s.* FROM Solicitud s " +
             "LEFT JOIN asignaciones a ON a.solicitudId = s.id " +
             "WHERE s.estado='PENDIENTE' " +
-            "AND date(s.ventanaInicioMillis/1000,'unixepoch','localtime') = :fecha " +
+            "AND strftime('%Y-%m-%d', s.ventanaInicioMillis/1000, 'unixepoch', 'localtime') = :fecha " +
             "AND a.id IS NULL " +
             "ORDER BY s.ventanaInicioMillis ASC")
     List<Solicitud> listUnassignedByFecha(String fecha);

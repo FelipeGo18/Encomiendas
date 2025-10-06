@@ -3,7 +3,9 @@ package com.hfad.encomiendas.ui;
 
 import android.os.Bundle;
 import android.view.*;
+import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -14,6 +16,7 @@ import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.core.SessionManager;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.ManifiestoItem;
+import com.hfad.encomiendas.data.Recolector;
 import java.util.*;
 import java.util.concurrent.Executors;
 
@@ -21,6 +24,8 @@ public class RepartidorDashboardFragment extends Fragment {
 
     private RecyclerView rv;
     private TextView tvEmpty;
+    private TextView tvReputacion;
+    private Button btnVerCalificaciones;
     private EntregasAdapter adapter;
 
     @Nullable @Override
@@ -33,10 +38,23 @@ public class RepartidorDashboardFragment extends Fragment {
         super.onViewCreated(v, s);
         rv = v.findViewById(R.id.rvEntregas);
         tvEmpty = v.findViewById(R.id.tvEmpty);
+        tvReputacion = v.findViewById(R.id.tvReputacion);
+        btnVerCalificaciones = v.findViewById(R.id.btnVerCalificaciones);
+
         rv.setLayoutManager(new LinearLayoutManager(requireContext()));
         adapter = new EntregasAdapter(id -> openEntrega(id));
         rv.setAdapter(adapter);
+
+        // Configurar el botón para ver calificaciones
+        btnVerCalificaciones.setOnClickListener(view -> navigateToRatings());
+
         cargar();
+        cargarReputacion();
+    }
+
+    private void navigateToRatings() {
+        NavController nav = NavHostFragment.findNavController(this);
+        nav.navigate(R.id.misCalificacionesFragment);
     }
 
     private void cargar() {
@@ -56,6 +74,44 @@ public class RepartidorDashboardFragment extends Fragment {
         args.putInt("manifiestoItemId", itemId);
         NavController nav = NavHostFragment.findNavController(this);
         nav.navigate(R.id.entregaFragment, args);
+    }
+
+    private void cargarReputacion(){
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(requireContext());
+                String email = new SessionManager(requireContext()).getEmail();
+                Recolector r = db.recolectorDao().getByUserEmail(email);
+                if (r == null) return;
+
+                // USAR RATING MANAGEMENT SERVICE PARA ESTADÍSTICAS DETALLADAS
+                com.hfad.encomiendas.core.RatingManagementService ratingService =
+                    new com.hfad.encomiendas.core.RatingManagementService(db);
+
+                com.hfad.encomiendas.core.RatingManagementService.RatingStats stats =
+                    ratingService.getRepartidorStats(r.id);
+
+                requireActivity().runOnUiThread(() -> {
+                    if (stats.totalRatings == 0) {
+                        tvReputacion.setText("Reputación: sin calificaciones");
+                    } else {
+                        // Mostrar estadísticas más detalladas
+                        String reputacionDetallada = String.format(Locale.getDefault(),
+                            "Reputación: %.2f ★ (%d calificaciones)\n" +
+                            "★★★★★ %.0f%% | ★★★★☆ %.0f%% | ★★★☆☆ %.0f%% | ★★☆☆☆ %.0f%% | ★☆☆☆☆ %.0f%%",
+                            stats.averageRating, stats.totalRatings,
+                            stats.getPercentage(5), stats.getPercentage(4), stats.getPercentage(3),
+                            stats.getPercentage(2), stats.getPercentage(1));
+
+                        tvReputacion.setText(reputacionDetallada);
+                    }
+                });
+            } catch (Exception ignore) {
+                requireActivity().runOnUiThread(() -> {
+                    tvReputacion.setText("Reputación: error al cargar");
+                });
+            }
+        });
     }
 
     /* ===== Adapter ===== */

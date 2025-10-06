@@ -104,12 +104,12 @@ public class AsignadorService {
                                 new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                                     .format(new java.util.Date(recolector.lastSeenMillis)) : "desconocida") + ")");
                     } else {
-                        // FALLBACK: Si no hay ubicación real, usar ubicación cerca del destino
-                        double[] ubicacionFallback = generarUbicacionRecolectorInicial(s.lat, s.lon);
-                        latRecolector = ubicacionFallback[0];
-                        lonRecolector = ubicacionFallback[1];
+                        // USAR EL MÉTODO MEJORADO que considera la ubicación del recolector y simula movimiento realista
+                        double[] ubicacionMejorada = generarUbicacionRecolectorMejorada(s.lat, s.lon, recolector);
+                        latRecolector = ubicacionMejorada[0];
+                        lonRecolector = ubicacionMejorada[1];
 
-                        android.util.Log.w("ASIG", "⚠ Recolector sin ubicación real, usando fallback cerca del destino: " +
+                        android.util.Log.d("ASIG", "✓ Usando ubicación MEJORADA del recolector (método inteligente): " +
                             latRecolector + "," + lonRecolector);
                     }
 
@@ -169,22 +169,16 @@ public class AsignadorService {
         return nInserted[0];
     }
 
-    private String generarCodigoManifiestoUnico() {
-        String base = new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(new java.util.Date());
-        int intento = 1;
-        while (intento < 10_000) {
-            String codigo = "M-" + base + "-" + String.format(java.util.Locale.getDefault(), "%04d", intento);
-            if (db.manifiestoDao().countByCodigo(codigo) == 0) return codigo;
-            intento++;
-        }
-        return "M-" + base + "-XXXX";
-    }
-
     /**
-     * Asigna una ruta ya ordenada (lista de solicitudes) al recolector indicado.
-     * Además crea un Manifiesto y sus ManifiestoItems para persistir la ruta.
+     * Genera rutas ordenadas con manifiesto para un recolector específico.
+     * @param fecha Fecha de las rutas
+     * @param recolectorId ID del recolector
+     * @param orden Lista ordenada de solicitudes
+     * @param horaInicioMillisOpt Hora de inicio opcional
+     * @param notificarRuta Si debe notificar al recolector
+     * @return Número de solicitudes asignadas
      */
-    public int assignRutaOrdenada(String fecha,
+    public int generarRutaOrdenadaConManifiesto(String fecha,
                                   int recolectorId,
                                   List<Solicitud> orden,
                                   Long horaInicioMillisOpt,
@@ -261,14 +255,14 @@ public class AsignadorService {
                     inserted[0]
             );
         }
-
+        
         // INICIAR TRACKING CONTINUO DEL RECOLECTOR (igual que en el otro método)
         if (inserted[0] > 0) {
             android.util.Log.d("ASIG", "Iniciando tracking continuo para recolector (ruta ordenada): " + fRecolector);
             android.content.Intent trackingIntent = new android.content.Intent(context, com.hfad.encomiendas.core.TrackingForegroundService.class);
             trackingIntent.setAction(com.hfad.encomiendas.core.TrackingForegroundService.ACTION_START);
             trackingIntent.putExtra("recolectorId", fRecolector);
-
+            
             try {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     context.startForegroundService(trackingIntent);
@@ -280,7 +274,7 @@ public class AsignadorService {
                 android.util.Log.e("ASIG", "Error iniciando tracking continuo para recolector (ruta ordenada) " + fRecolector, e);
             }
         }
-
+        
         return inserted[0];
     }
 
@@ -373,6 +367,17 @@ public class AsignadorService {
     }
 
     /**
+     * Genera un código único para el manifiesto
+     * @return Código único del manifiesto
+     */
+    private String generarCodigoManifiestoUnico() {
+        // Generar código basado en timestamp y un número aleatorio
+        long timestamp = System.currentTimeMillis();
+        int random = (int) (Math.random() * 9999);
+        return String.format("MAN-%d-%04d", timestamp % 1000000, random);
+    }
+
+    /**
      * Genera una ubicación mejorada para el recolector, teniendo en cuenta su ubicación actual si está disponible.
      * Se espera que esta ubicación sea realista y cerca del destino pero no exactamente en él.
      */
@@ -413,15 +418,5 @@ public class AsignadorService {
         double lonRecolector = lonDestino + (distanciaAleatoria * Math.sin(anguloAleatorio));
 
         return new double[]{latRecolector, lonRecolector};
-    }
-
-    /**
-     * Simula el movimiento del recolector hacia el destino, generando una ubicación intermedia.
-     * Se utiliza para crear un evento de tracking "EN_RUTA" que muestre el progreso hacia el destino.
-     */
-    private double[] simularMovimientoHaciaDestino(double latInicio, double lonInicio, double latDestino, double lonDestino, double porcentaje) {
-        double latIntermedia = latInicio + (latDestino - latInicio) * porcentaje;
-        double lonIntermedia = lonInicio + (lonDestino - lonInicio) * porcentaje;
-        return new double[]{latIntermedia, lonIntermedia};
     }
 }

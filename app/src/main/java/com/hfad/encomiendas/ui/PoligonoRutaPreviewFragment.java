@@ -156,7 +156,7 @@ public class PoligonoRutaPreviewFragment extends Fragment implements OnMapReadyC
             if (reco == null) { runOnUi(() -> toast("No hay recolectores")); return; }
             List<Solicitud> orden = adapter.getData();
             AsignadorService svc = new AsignadorService(requireContext());
-            int n = svc.assignRutaOrdenada(fecha, reco.id, orden, horaInicioMillis <=0 ? null : horaInicioMillis, true);
+            int n = svc.generarRutaOrdenadaConManifiesto(fecha, reco.id, orden, horaInicioMillis <=0 ? null : horaInicioMillis, true);
             runOnUi(() -> {
                 toast(n+" asignadas");
                 androidx.navigation.Navigation.findNavController(requireView()).popBackStack();

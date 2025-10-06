@@ -55,17 +55,6 @@ public class TrackingService {
         });
     }
 
-    public void upsertEta(long shipmentId, String etaIso, String source, VoidCb after) {
-        Executors.newSingleThreadExecutor().execute(() -> {
-            EtaCache c = new EtaCache();
-            c.shipmentId = shipmentId;
-            c.eta = etaIso;
-            c.source = source;
-            db.etaCacheDao().upsert(c);
-            if (after != null) ui.post(after::done);
-        });
-    }
-
     // --- helpers ----
     public static double haversine(double lat1, double lon1, double lat2, double lon2) {
         final double R = 6371.0; // km
@@ -78,19 +67,9 @@ public class TrackingService {
         return R * c;
     }
 
-    public static String calcEtaIso(double distanceKm, double avgSpeedKmh) {
-        if (avgSpeedKmh <= 0) avgSpeedKmh = 20;
-        double hours = distanceKm / avgSpeedKmh;
-        long millis = (long)(hours * 3600_000L);
-        long etaMillis = System.currentTimeMillis() + millis;
-        return toIso(etaMillis);
-    }
-
-    private static String toIso(long millis) {
+    private static String nowIso() {
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault());
         fmt.setTimeZone(TimeZone.getDefault());
-        return fmt.format(new Date(millis));
+        return fmt.format(new Date(System.currentTimeMillis()));
     }
-
-    private static String nowIso() { return toIso(System.currentTimeMillis()); }
 }

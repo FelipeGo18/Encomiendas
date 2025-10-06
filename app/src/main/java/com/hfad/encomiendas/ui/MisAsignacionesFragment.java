@@ -14,6 +14,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
@@ -54,7 +55,6 @@ public class MisAsignacionesFragment extends Fragment {
     private AsignacionesAdapter adapter;
     private FusedLocationProviderClient fusedClient;
     private LocationCallback locationCallback;
-    private ActivityResultLauncher<String> permisoLocationLauncher;
     private ActivityResultLauncher<String[]> permisosMultiLauncher;
     private Integer currentRecolectorId = null;
     private boolean tieneFine = false;
@@ -87,25 +87,27 @@ public class MisAsignacionesFragment extends Fragment {
         if (swipe != null) swipe.setOnRefreshListener(this::loadData);
 
         fusedClient = LocationServices.getFusedLocationProviderClient(requireContext());
-        permisoLocationLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-            if (granted) iniciarLocationUpdates();
-            else Toast.makeText(requireContext(), "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show();
-        });
+
         permisosMultiLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), res -> {
             Boolean fine = res.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false);
             Boolean coarse = res.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false);
             tieneFine = Boolean.TRUE.equals(fine);
             tieneCoarse = Boolean.TRUE.equals(coarse) || tieneFine; // fine implica coarse
-            if (tieneFine || tieneCoarse) iniciarLocationUpdates();
-            else Toast.makeText(requireContext(), "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show();
+            if (tieneFine || tieneCoarse) {
+                iniciarLocationUpdates();
+            } else {
+                Toast.makeText(requireContext(), "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show();
+            }
         });
+
         prepararCallbackUbicacion();
         loadData();
     }
 
     private void prepararCallbackUbicacion(){
         locationCallback = new LocationCallback() {
-            @Override public void onLocationResult(@NonNull LocationResult locationResult) {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
                 if (locationResult.getLastLocation() == null || currentRecolectorId == null) return;
                 double lat = locationResult.getLastLocation().getLatitude();
                 double lon = locationResult.getLastLocation().getLongitude();
@@ -120,8 +122,8 @@ public class MisAsignacionesFragment extends Fragment {
     }
 
     private void solicitarPermisoUbicacionYArrancar(){
-        tieneFine = requireContext().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        tieneCoarse = requireContext().checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        tieneFine = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        tieneCoarse = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
         if (tieneFine || tieneCoarse) {
             iniciarLocationUpdates();
         } else {
@@ -131,6 +133,13 @@ public class MisAsignacionesFragment extends Fragment {
 
     private void iniciarLocationUpdates(){
         if (fusedClient == null || locationCallback == null) return;
+
+        // Verificar permisos antes de intentar usar la ubicación
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
         try {
             long interval = tieneFine ? 15000L : 30000L;
             float minDist = tieneFine ? 25f : 60f;
@@ -139,12 +148,15 @@ public class MisAsignacionesFragment extends Fragment {
                     .setMinUpdateDistanceMeters(minDist)
                     .build();
             fusedClient.requestLocationUpdates(req, locationCallback, requireActivity().getMainLooper());
-        } catch (SecurityException ignored) {}
+        } catch (SecurityException ignored) {
+            Toast.makeText(requireContext(), "Error de permisos de ubicación", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void scheduleWorker(String email){
+        if (email == null || email.trim().isEmpty()) return;
         Data data = new Data.Builder().putString(LocationPeriodicWorker.KEY_EMAIL, email).build();
-        PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(LocationPeriodicWorker.class, java.time.Duration.ofMinutes(30))
+        PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(LocationPeriodicWorker.class, 30, java.util.concurrent.TimeUnit.MINUTES)
                 .setInputData(data)
                 .build();
         WorkManager.getInstance(requireContext()).enqueueUniquePeriodicWork("loc_periodic", ExistingPeriodicWorkPolicy.UPDATE, req);
@@ -152,18 +164,27 @@ public class MisAsignacionesFragment extends Fragment {
 
     private void iniciarServicioForegroundSiAplica(){
         if (currentRecolectorId == null) return;
-        // Sólo si tiene fine + background (opcional) => intentamos
-        boolean bg = requireContext().checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        if (tieneFine && bg) {
+
+        // Verificar permisos de ubicación
+        boolean fine = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        boolean bg = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+
+        if (fine) {
             Intent i = new Intent(requireContext(), TrackingForegroundService.class);
             i.setAction(TrackingForegroundService.ACTION_START);
             i.putExtra("recolectorId", currentRecolectorId);
-            requireContext().startService(i);
+            try {
+                requireContext().startService(i);
+            } catch (Exception e) {
+                Toast.makeText(requireContext(), "Error iniciando servicio de tracking", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
     private void detenerLocationUpdates(){
-        if (fusedClient != null && locationCallback != null) fusedClient.removeLocationUpdates(locationCallback);
+        if (fusedClient != null && locationCallback != null) {
+            fusedClient.removeLocationUpdates(locationCallback);
+        }
     }
 
     private void loadData() {
@@ -190,28 +211,35 @@ public class MisAsignacionesFragment extends Fragment {
             } catch (Exception e) {
                 runOnUi(() -> {
                     if (swipe != null) swipe.setRefreshing(false);
-                    Toast.makeText(requireContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "Error cargando datos: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
         });
     }
 
-    @Override public void onResume(){
+    @Override
+    public void onResume(){
         super.onResume();
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 SessionManager sm = new SessionManager(requireContext());
                 String email = sm.getEmail();
                 RecolectorDao rdao = AppDatabase.getInstance(requireContext()).recolectorDao();
-                Recolector r = (email == null)? null : rdao.getByUserEmail(email);
-                currentRecolectorId = (r == null)? null : r.id;
+                Recolector r = (email == null) ? null : rdao.getByUserEmail(email);
+                currentRecolectorId = (r == null) ? null : r.id;
                 if (email != null) scheduleWorker(email);
-                runOnUi(() -> { solicitarPermisoUbicacionYArrancar(); iniciarServicioForegroundSiAplica();});
-            } catch (Exception e) { /* ignore */ }
+                runOnUi(() -> {
+                    solicitarPermisoUbicacionYArrancar();
+                    iniciarServicioForegroundSiAplica();
+                });
+            } catch (Exception e) {
+                runOnUi(() -> Toast.makeText(requireContext(), "Error en onResume: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
         });
     }
 
-    @Override public void onPause(){
+    @Override
+    public void onPause(){
         super.onPause();
         detenerLocationUpdates();
         // No detenemos el worker; servicio foreground se puede parar manualmente aparte
@@ -233,7 +261,9 @@ public class MisAsignacionesFragment extends Fragment {
             notifyDataSetChanged();
         }
 
-        @NonNull @Override public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        @NonNull
+        @Override
+        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View v = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.item_asignacion_recolector, parent, false);
             return new VH(v);
@@ -254,22 +284,28 @@ public class MisAsignacionesFragment extends Fragment {
             h.tvSub.setText("Paquete " + tam + " — " + co + "  →  " + cd);
 
             // Columnas (origen/destino/pago/valor)
-            h.tvOrigenDir.setText( nn(m.direccion) );
-            h.tvDestinoDir.setText( nn(m.destinoDir) );
-            h.tvPago.setText( nn(m.pago) );
-            h.tvValor.setText( nn(m.valor) );
+            h.tvOrigenDir.setText(nn(m.direccion));
+            h.tvDestinoDir.setText(nn(m.destinoDir));
+            h.tvPago.setText(nn(m.pago));
+            h.tvValor.setText(nn(m.valor));
 
             // Rango hora si viene en el modelo
             String rango = (m.horaDesde == null ? "" : m.horaDesde) + "–" + (m.horaHasta == null ? "" : m.horaHasta);
             h.tvDetalle.setText(rango);
 
-            h.itemView.setOnClickListener(v ->
-            { if (clickCb != null) clickCb.onClick(m.id); });
+            h.itemView.setOnClickListener(v -> {
+                if (clickCb != null) clickCb.onClick(m.id);
+            });
         }
 
-        @Override public int getItemCount() { return data.size(); }
+        @Override
+        public int getItemCount() {
+            return data.size();
+        }
 
-        private static @NonNull String nn(String s) { return (s == null || s.trim().isEmpty()) ? "—" : s.trim(); }
+        private static @NonNull String nn(String s) {
+            return (s == null || s.trim().isEmpty()) ? "—" : s.trim();
+        }
     }
 
     static class VH extends RecyclerView.ViewHolder {
@@ -287,5 +323,9 @@ public class MisAsignacionesFragment extends Fragment {
         }
     }
 
-    private void runOnUi(Runnable r) { if (!isAdded()) return; requireActivity().runOnUiThread(r); }
+    private void runOnUi(Runnable r) {
+        if (isAdded()) {
+            requireActivity().runOnUiThread(r);
+        }
+    }
 }

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Estrellas y puntuación -->
+        <TextView
+            android:id="@+id/tvEstrellas"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="★★★★★ (5/5)"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/holo_orange_light"
+            android:layout_marginBottom="4dp" />
+
+        <!-- Información del envío -->
+        <TextView
+            android:id="@+id/tvGuia"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Guía: G-12345"
+            android:textSize="14sp"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:id="@+id/tvDireccion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Dirección: Calle 123 #45-67"
+            android:textSize="14sp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Comentario (opcional) -->
+        <TextView
+            android:id="@+id/tvComentario"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Comentario del cliente"
+            android:textSize="14sp"
+            android:textStyle="italic"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
+        <!-- Fecha -->
+        <TextView
+            android:id="@+id/tvFecha"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="01/01/2024 14:30"
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- Indicador de edición -->
+        <TextView
+            android:id="@+id/tvEditado"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="(Editado: 01/01/2024 15:00)"
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textStyle="italic"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

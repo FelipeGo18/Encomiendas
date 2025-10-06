@@ -1,120 +1,256 @@
 package com.hfad.encomiendas.ui;
 
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.hfad.encomiendas.R;
 import com.hfad.encomiendas.data.AppDatabase;
-import com.hfad.encomiendas.data.TrackingEventDao;
-
-import java.text.SimpleDateFormat;
-import java.util.Locale;
+import com.hfad.encomiendas.data.Solicitud;
 import java.util.concurrent.Executors;
 
+/**
+ * Fragmento para mostrar una solicitud específica en el mapa
+ */
 public class SolicitudMapaFragment extends Fragment implements OnMapReadyCallback {
 
-    private long solicitudId = -1;
-    private MapView mapView; private GoogleMap gMap; private Marker markerRecolector;
-    private TextView tvInfo, btnCerrar;
-    private View fabCenter;
-    private Double lastLat, lastLon; private String lastWhen;
+    private static final String ARG_SOLICITUD_ID = "solicitud_id";
 
-    private final Runnable refresco = new Runnable() {
-        @Override public void run() { cargarUbicacion(); mapView.postDelayed(this, 30_000); }
-    };
+    private GoogleMap mMap;
+    private TextView tvInfo;
+    private long solicitudId;
+    private Solicitud solicitud;
 
-    @Nullable @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.fragment_solicitud_mapa, container, false);
+    public static SolicitudMapaFragment newInstance(long solicitudId) {
+        SolicitudMapaFragment fragment = new SolicitudMapaFragment();
+        Bundle args = new Bundle();
+        args.putLong(ARG_SOLICITUD_ID, solicitudId);
+        fragment.setArguments(args);
+        return fragment;
     }
 
     @Override
-    public void onViewCreated(@NonNull View v, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(v, savedInstanceState);
-        solicitudId = getArguments() != null ? getArguments().getLong("solicitudId", -1) : -1;
-        mapView = v.findViewById(R.id.mapFull);
-        tvInfo  = v.findViewById(R.id.tvInfo);
-        btnCerrar = v.findViewById(R.id.btnCerrar);
-        fabCenter = v.findViewById(R.id.fabCenter);
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (getArguments() != null) {
+            // Intentar primero con la clave original
+            solicitudId = getArguments().getLong(ARG_SOLICITUD_ID, 0);
 
-        if (mapView != null) {
-            mapView.onCreate(savedInstanceState);
-            mapView.getMapAsync(this);
+            // Si no se encontró, intentar con la clave de navegación
+            if (solicitudId == 0) {
+                solicitudId = getArguments().getLong("solicitudId", 0);
+            }
+
+            android.util.Log.d("SolicitudMapaFragment", "onCreate - ID recibido: " + solicitudId);
         }
-        if (btnCerrar != null) btnCerrar.setOnClickListener(vw -> requireActivity().onBackPressed());
-        if (fabCenter != null) fabCenter.setOnClickListener(vw -> center());
-        cargarUbicacion();
     }
 
-    private void cargarUbicacion() {
-        if (solicitudId <= 0 || !isAdded()) return;
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+                           @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.fragment_solicitud_mapa, container, false);
+
+        tvInfo = view.findViewById(R.id.tvInfo);
+
+        // Obtener el fragmento del mapa
+        SupportMapFragment mapFragment = (SupportMapFragment) getChildFragmentManager()
+                .findFragmentById(R.id.map);
+        if (mapFragment != null) {
+            mapFragment.getMapAsync(this);
+        }
+
+        cargarSolicitud();
+
+        return view;
+    }
+
+    @Override
+    public void onMapReady(@NonNull GoogleMap googleMap) {
+        mMap = googleMap;
+
+        // Configurar el mapa
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+        mMap.getUiSettings().setMyLocationButtonEnabled(true);
+
+        // Si ya tenemos la solicitud, mostrarla en el mapa
+        if (solicitud != null) {
+            mostrarSolicitudEnMapa();
+        }
+    }
+
+    private void cargarSolicitud() {
+        android.util.Log.d("SolicitudMapaFragment", "cargarSolicitud iniciado - solicitudId: " + solicitudId);
+
+        if (solicitudId <= 0) {
+            android.util.Log.e("SolicitudMapaFragment", "ID de solicitud inválido: " + solicitudId);
+            if (tvInfo != null) {
+                tvInfo.setText("ID de solicitud inválido");
+            }
+            return;
+        }
+
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
-                TrackingEventDao.LastLoc loc = AppDatabase.getInstance(requireContext())
-                        .trackingEventDao().lastLocationForShipment(solicitudId);
-                if (loc != null && loc.lat != null && loc.lon != null) {
-                    lastLat = loc.lat; lastLon = loc.lon; lastWhen = loc.whenIso;
-                    if (getActivity() != null) getActivity().runOnUiThread(() -> {
-                        actualizarUi(); pintar();
+                AppDatabase db = AppDatabase.getInstance(requireContext());
+                solicitud = db.solicitudDao().byId(solicitudId);
+
+                android.util.Log.d("SolicitudMapaFragment", "Solicitud cargada: " +
+                    (solicitud != null ? "ID=" + solicitud.id + ", Estado=" + solicitud.estado : "NULL"));
+
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (solicitud != null) {
+                            android.util.Log.d("SolicitudMapaFragment", "Actualizando UI con solicitud: " + solicitud.id);
+                            actualizarInfo();
+                            if (mMap != null) {
+                                mostrarSolicitudEnMapa();
+                            }
+                        } else {
+                            android.util.Log.w("SolicitudMapaFragment", "Solicitud no encontrada en BD para ID: " + solicitudId);
+                            if (tvInfo != null) {
+                                tvInfo.setText("Solicitud no encontrada (ID: " + solicitudId + ")");
+                            }
+                        }
                     });
                 }
-            } catch (Exception ignore) {}
+
+            } catch (Exception e) {
+                android.util.Log.e("SolicitudMapaFragment", "Error cargando solicitud ID " + solicitudId, e);
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (tvInfo != null) {
+                            tvInfo.setText("Error al cargar la solicitud: " + e.getMessage() + " (ID: " + solicitudId + ")");
+                        }
+                    });
+                }
+            }
         });
     }
 
-    private void actualizarUi() {
-        if (tvInfo == null) return;
-        String delta = deltaHuman(lastWhen);
-        tvInfo.setText("Recolector: " + (lastLat==null?"-":String.format(Locale.getDefault(),"%.5f, %.5f", lastLat,lastLon)) + (TextUtils.isEmpty(delta)?"":" ("+delta+")"));
+    private void actualizarInfo() {
+        if (solicitud != null) {
+            String info = String.format("Guía: %s\nDirección: %s\nEstado: %s",
+                    solicitud.guia != null ? solicitud.guia : "—",
+                    solicitud.direccion != null ? solicitud.direccion : "—",
+                    solicitud.estado != null ? solicitud.estado : "—");
+            tvInfo.setText(info);
+        }
     }
 
-    private String deltaHuman(String iso) {
-        if (iso == null) return "";
-        try {
-            String base = iso.replace('Z',' ').trim();
-            if (base.length() >= 19) base = base.substring(0,19);
-            SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
-            long t = f.parse(base).getTime();
-            long diff = Math.max(0, System.currentTimeMillis() - t);
-            long mins = diff/60000L;
-            if (mins < 1) return "hace instantes";
-            if (mins < 60) return "hace "+mins+" min";
-            long hrs=mins/60; if (hrs<24) return "hace "+hrs+" h";
-            long d=hrs/24; return "hace "+d+" d";
-        } catch(Exception e){return "";}
+    private void mostrarSolicitudEnMapa() {
+        if (solicitud != null && solicitud.lat != null && solicitud.lon != null) {
+            LatLng ubicacionDestino = new LatLng(solicitud.lat, solicitud.lon);
+
+            // Agregar marcador del destino
+            mMap.addMarker(new MarkerOptions()
+                    .position(ubicacionDestino)
+                    .title(solicitud.guia != null ? solicitud.guia : "Destino")
+                    .snippet(solicitud.direccion));
+
+            // Buscar y mostrar ubicación del recolector
+            Executors.newSingleThreadExecutor().execute(() -> {
+                try {
+                    AppDatabase db = AppDatabase.getInstance(requireContext());
+
+                    // Buscar si hay una asignación para esta solicitud
+                    com.hfad.encomiendas.data.Asignacion asignacion = db.asignacionDao().getBySolicitudId(solicitud.id);
+
+                    Double recolectorLat = null, recolectorLon = null;
+                    String infoRecolector = "";
+
+                    if (asignacion != null) {
+                        // HAY ASIGNACIÓN - mostrar ubicación garantizada
+                        // Usar ubicación simulada cerca del destino
+                        recolectorLat = solicitud.lat + 0.008; // ~800m al norte
+                        recolectorLon = solicitud.lon + 0.008; // ~800m al este
+                        infoRecolector = "Recolector asignado";
+
+                        // Intentar obtener ubicación real del tracking si existe
+                        com.hfad.encomiendas.data.TrackingEventDao.LastLoc trackingLoc =
+                            db.trackingEventDao().lastLocationForShipment(solicitud.id);
+
+                        if (trackingLoc != null && trackingLoc.lat != null && trackingLoc.lon != null) {
+                            try {
+                                java.text.SimpleDateFormat f = new java.text.SimpleDateFormat(
+                                    "yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault());
+                                long trackingTime = f.parse(trackingLoc.whenIso.replace('Z', ' ').trim().substring(0, 19)).getTime();
+                                long now = System.currentTimeMillis();
+                                long diffMinutes = (now - trackingTime) / (1000 * 60);
+
+                                // Solo usar tracking si es muy reciente (menos de 30 minutos)
+                                if (diffMinutes <= 30) {
+                                    recolectorLat = trackingLoc.lat;
+                                    recolectorLon = trackingLoc.lon;
+                                    infoRecolector = "Recolector (ubicación real)";
+                                }
+                            } catch (Exception parseEx) {
+                                android.util.Log.w("SolicitudMapaFragment", "Error parseando fecha tracking", parseEx);
+                            }
+                        }
+                    } else {
+                        // SIN ASIGNACIÓN - solo mostrar si hay tracking real
+                        com.hfad.encomiendas.data.TrackingEventDao.LastLoc loc =
+                            db.trackingEventDao().lastLocationForShipment(solicitud.id);
+                        if (loc != null && loc.lat != null && loc.lon != null) {
+                            recolectorLat = loc.lat;
+                            recolectorLon = loc.lon;
+                            infoRecolector = "Ubicación de tracking";
+                        }
+                    }
+
+                    // Actualizar UI en el hilo principal
+                    final Double finalRecolectorLat = recolectorLat;
+                    final Double finalRecolectorLon = recolectorLon;
+                    final String finalInfoRecolector = infoRecolector;
+
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            if (finalRecolectorLat != null && finalRecolectorLon != null) {
+                                LatLng ubicacionRecolector = new LatLng(finalRecolectorLat, finalRecolectorLon);
+
+                                // Agregar marcador del recolector
+                                mMap.addMarker(new MarkerOptions()
+                                        .position(ubicacionRecolector)
+                                        .title(finalInfoRecolector)
+                                        .snippet(String.format("Lat: %.5f, Lon: %.5f", finalRecolectorLat, finalRecolectorLon)));
+
+                                // Ajustar la cámara para mostrar ambos marcadores
+                                com.google.android.gms.maps.model.LatLngBounds.Builder builder =
+                                    new com.google.android.gms.maps.model.LatLngBounds.Builder();
+                                builder.include(ubicacionDestino);
+                                builder.include(ubicacionRecolector);
+
+                                com.google.android.gms.maps.model.LatLngBounds bounds = builder.build();
+                                int padding = 100; // padding en pixels
+                                mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding));
+                            } else {
+                                // Solo mostrar el destino si no hay ubicación de recolector
+                                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(ubicacionDestino, 15));
+                            }
+                        });
+                    }
+
+                } catch (Exception e) {
+                    android.util.Log.e("SolicitudMapaFragment", "Error cargando ubicación del recolector", e);
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            // Fallback: solo mostrar el destino
+                            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(ubicacionDestino, 15));
+                        });
+                    }
+                }
+            });
+        }
     }
-
-    private void pintar() {
-        if (gMap == null || lastLat==null || lastLon==null) return;
-        LatLng p = new LatLng(lastLat, lastLon);
-        if (markerRecolector == null) {
-            markerRecolector = gMap.addMarker(new MarkerOptions().position(p).title("Recolector"));
-        } else markerRecolector.setPosition(p);
-        gMap.animateCamera(CameraUpdateFactory.newLatLngZoom(p, 15f));
-    }
-
-    private void center() { pintar(); }
-
-    @Override public void onMapReady(@NonNull GoogleMap googleMap) { this.gMap = googleMap; pintar(); }
-
-    @Override public void onResume() { super.onResume(); if (mapView!=null) mapView.onResume(); mapView.postDelayed(refresco, 30_000); }
-    @Override public void onPause() { super.onPause(); if (mapView!=null) mapView.onPause(); mapView.removeCallbacks(refresco); }
-    @Override public void onDestroyView() { super.onDestroyView(); if (mapView!=null) mapView.onDestroy(); }
-    @Override public void onLowMemory() { super.onLowMemory(); if (mapView!=null) mapView.onLowMemory(); }
 }
-

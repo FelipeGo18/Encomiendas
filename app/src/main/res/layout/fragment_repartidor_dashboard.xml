@@ -14,7 +14,35 @@
         android:text="Mis entregas asignadas"
         android:textSize="20sp"
         android:textStyle="bold"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginBottom="4dp" />
+
+    <!-- Container horizontal para reputación y botón -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <!-- Reputación promedio del recolector -->
+        <TextView
+            android:id="@+id/tvReputacion"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Reputación: —" />
+
+        <!-- Botón para ver todas las calificaciones -->
+        <Button
+            android:id="@+id/btnVerCalificaciones"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ver mis calificaciones"
+            android:textSize="12sp"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_marginStart="8dp" />
+
+    </LinearLayout>
 
     <!-- Mensaje cuando no hay entregas -->
     <TextView

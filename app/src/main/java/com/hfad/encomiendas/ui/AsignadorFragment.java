@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.hfad.encomiendas.R;
+import com.hfad.encomiendas.core.GenerateRouteUseCase;
 import com.hfad.encomiendas.core.NotificationHelper;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Recolector;
@@ -122,23 +123,86 @@ public class AsignadorFragment extends Fragment {
             return;
         }
         io.execute(() -> {
-            com.hfad.encomiendas.core.AsignadorService svc =
-                    new com.hfad.encomiendas.core.AsignadorService(requireContext());
-            int n = svc.generarRutasParaFechaZona(fecha, zona);
-            long zoneId = resolveZoneId(zona);
-            runOnUi(() -> {
-                toast("Asignadas " + n + " en " + zona);
-                refrescarResumenYMapa(fecha);
-                // Ir directo al detalle para ver la ruta trazada:
-                Bundle b = new Bundle();
-                b.putString("fecha", fecha);
-                b.putString("zona", zona);
-                b.putInt("zoneId", (int) zoneId);
-                if (isAdded()) {
-                    androidx.navigation.Navigation.findNavController(requireView())
-                            .navigate(R.id.zonaDetalleFragment, b);
+            AppDatabase db = AppDatabase.getInstance(requireContext());
+            List<com.hfad.encomiendas.data.Solicitud> solicitudes =
+                db.solicitudDao().listUnassignedByFechaZona(fecha, zona);
+
+            if (solicitudes != null && !solicitudes.isEmpty()) {
+                // 🚀 OPTIMIZACIÓN AUTOMÁTICA DE RUTA
+                runOnUi(() -> toast("🔄 Optimizando ruta para " + solicitudes.size() + " solicitudes..."));
+
+                GenerateRouteUseCase routeOptimizer = new GenerateRouteUseCase(requireContext());
+                GenerateRouteUseCase.Result resultado = routeOptimizer.optimize(solicitudes);
+
+                // Usar las solicitudes optimizadas
+                List<com.hfad.encomiendas.data.Solicitud> solicitudesOptimizadas = resultado.ordenOptimizado;
+                double distanciaTotal = resultado.distanciaTotalM;
+
+                runOnUi(() -> toast("✅ Ruta optimizada: " + String.format("%.1f km", distanciaTotal/1000)));
+
+                // Buscar recolector para la zona
+                com.hfad.encomiendas.data.Recolector recolector = db.recolectorDao().findByZona(zona);
+                if (recolector == null) {
+                    List<com.hfad.encomiendas.data.Recolector> all = db.recolectorDao().listAll();
+                    if (all != null && !all.isEmpty()) {
+                        recolector = all.get(0);
+                    }
                 }
-            });
+
+                if (recolector != null) {
+                    com.hfad.encomiendas.core.AsignadorService svc =
+                            new com.hfad.encomiendas.core.AsignadorService(requireContext());
+
+                    Long horaInicio = System.currentTimeMillis() + (30 * 60 * 1000); // 30 min desde ahora
+
+                    // Usar las solicitudes YA OPTIMIZADAS en lugar de las originales
+                    int n = svc.generarRutaOrdenadaConManifiesto(
+                        fecha,
+                        recolector.id,
+                        solicitudesOptimizadas, // ← AQUÍ ESTÁ LA OPTIMIZACIÓN
+                        horaInicio,
+                        true // notificar al repartidor
+                    );
+
+                    long zoneId = resolveZoneId(zona);
+                    runOnUi(() -> {
+                        String mensaje = String.format("🎯 Ruta optimizada creada: %d paradas en %s\n📏 Distancia: %.1f km\n💾 Manifiesto completo generado",
+                                n, zona, distanciaTotal/1000);
+                        toast(mensaje);
+                        refrescarResumenYMapa(fecha);
+
+                        // Ir directo al detalle para ver la ruta optimizada
+                        Bundle b = new Bundle();
+                        b.putString("fecha", fecha);
+                        b.putString("zona", zona);
+                        b.putInt("zoneId", (int) zoneId);
+                        if (isAdded()) {
+                            androidx.navigation.Navigation.findNavController(requireView())
+                                    .navigate(R.id.zonaDetalleFragment, b);
+                        }
+                    });
+                } else {
+                    runOnUi(() -> toast("❌ No hay recolectores disponibles para la zona " + zona));
+                }
+            } else {
+                // Fallback al método original si no hay solicitudes específicas
+                com.hfad.encomiendas.core.AsignadorService svc =
+                        new com.hfad.encomiendas.core.AsignadorService(requireContext());
+                int n = svc.generarRutasParaFechaZona(fecha, zona);
+                long zoneId = resolveZoneId(zona);
+                runOnUi(() -> {
+                    toast("⚠️ Asignadas " + n + " en " + zona + " (método básico - sin optimización)");
+                    refrescarResumenYMapa(fecha);
+                    Bundle b = new Bundle();
+                    b.putString("fecha", fecha);
+                    b.putString("zona", zona);
+                    b.putInt("zoneId", (int) zoneId);
+                    if (isAdded()) {
+                        androidx.navigation.Navigation.findNavController(requireView())
+                                .navigate(R.id.zonaDetalleFragment, b);
+                    }
+                });
+            }
         });
     }
 

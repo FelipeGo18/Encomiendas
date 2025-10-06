@@ -12,7 +12,5 @@ public interface RecolectorLocationLogDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     long insert(RecolectorLocationLog log);
 
-    @Query("SELECT * FROM recolector_location_logs WHERE recolectorId = :rid ORDER BY ts DESC LIMIT :limit")
-    List<RecolectorLocationLog> lastLogs(int rid, int limit);
 }
 
