@@ -2,6 +2,40 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- Notificaciones - Visible en toolbar -->
+    <item
+        android:id="@+id/action_notifications"
+        android:icon="@drawable/ic_stat_assignment"
+        android:title="Notificaciones"
+        app:showAsAction="ifRoom"
+        app:actionLayout="@layout/notification_badge_layout" />
+
+    <!-- Perfil de usuario -->
+    <item
+        android:id="@+id/action_profile"
+        android:title="Mi Perfil"
+        app:showAsAction="never" />
+
+    <!-- Ayuda -->
+    <item
+        android:id="@+id/action_help"
+        android:title="Ayuda"
+        app:showAsAction="never" />
+
+    <!-- Configuración -->
+    <item
+        android:id="@+id/action_settings"
+        android:title="Configuración"
+        app:showAsAction="never" />
+
+    <!-- Divider (solo visual) -->
+    <item
+        android:id="@+id/divider"
+        android:enabled="false"
+        android:title="──────────"
+        app:showAsAction="never" />
+
+    <!-- Cerrar sesión -->
     <item
         android:id="@+id/action_logout"
         android:title="Cerrar sesión"

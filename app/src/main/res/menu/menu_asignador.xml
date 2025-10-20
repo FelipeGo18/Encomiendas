@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Menú específico para ASIGNADOR -->
+
+    <!-- Gestión de Zonas -->
+    <item
+        android:id="@+id/action_manage_zones"
+        android:title="Gestionar Zonas"
+        app:showAsAction="never" />
+
+    <!-- Ver Asignaciones -->
+    <item
+        android:id="@+id/action_view_assignments"
+        android:title="Ver Asignaciones"
+        app:showAsAction="never" />
+
+    <!-- Estadísticas -->
+    <item
+        android:id="@+id/action_statistics"
+        android:title="Estadísticas"
+        app:showAsAction="never" />
+
+    <!-- Perfil -->
+    <item
+        android:id="@+id/action_profile"
+        android:title="Mi Perfil"
+        app:showAsAction="never" />
+
+    <!-- Ayuda -->
+    <item
+        android:id="@+id/action_help"
+        android:title="Ayuda"
+        app:showAsAction="never" />
+
+    <item android:title="──────────" android:enabled="false" />
+
+    <!-- Cerrar sesión -->
+    <item
+        android:id="@+id/action_logout"
+        android:title="Cerrar sesión"
+        app:showAsAction="never" />
+</menu>
