@@ -160,6 +160,22 @@ public interface SolicitudDao {
     @Query("SELECT * FROM Solicitud WHERE remitenteId=:uid ORDER BY fechaEpochMillis DESC")
     List<Solicitud> listAllByUser(long uid);
 
+    // ========== QUERIES PARA ESTADÍSTICAS ADMIN ==========
+
+    @Query("SELECT COUNT(*) FROM Solicitud")
+    int getTotalSolicitudes();
+
+    @Query("SELECT COUNT(*) FROM Solicitud WHERE estado = :estado")
+    int countSolicitudesByEstado(String estado);
+
+    @Query("SELECT strftime('%Y-%m-%d', ventanaInicioMillis/1000, 'unixepoch', 'localtime') as fecha, " +
+           "COUNT(*) as count FROM Solicitud " +
+           "WHERE ventanaInicioMillis >= :startMillis " +
+           "GROUP BY fecha ORDER BY fecha DESC LIMIT 7")
+    List<FechaCount> getSolicitudesLast7Days(long startMillis);
+
+    @Query("SELECT AVG(ventanaFinMillis - fechaEpochMillis) FROM Solicitud WHERE estado = 'RECOLECTADA'")
+    Long getAvgTiempoRecoleccion();
 
     // POJOs de proyección
     class ZonaPendiente { public String zona; public int pendientes; }

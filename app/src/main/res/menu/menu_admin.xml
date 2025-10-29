@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Menú específico para ADMIN -->
+
+    <!-- Estadísticas -->
+    <item
+        android:id="@+id/action_statistics"
+        android:title="Estadísticas"
+        app:showAsAction="never" />
+
+    <!-- Gestión de Usuarios -->
+    <item
+        android:id="@+id/action_manage_users"
+        android:title="Gestionar Usuarios"
+        app:showAsAction="never" />
+
+    <!-- Perfil -->
+    <item
+        android:id="@+id/action_profile"
+        android:title="Mi Perfil"
+        app:showAsAction="never" />
+
+    <!-- Ayuda -->
+    <item
+        android:id="@+id/action_help"
+        android:title="Ayuda"
+        app:showAsAction="never" />
+
+    <item android:title="──────────" android:enabled="false" />
+
+    <!-- Cerrar sesión -->
+    <item
+        android:id="@+id/action_logout"
+        android:title="Cerrar sesión"
+        app:showAsAction="never" />
+</menu>
+

@@ -23,6 +23,43 @@ Este proyecto utiliza **Android Navigation Component**, que es la solución mode
 
 ---
 
+## 🔍 ANÁLISIS REAL DE IMPLEMENTACIÓN
+
+### ⚠️ Estado Actual: Navegación Mixta
+
+El proyecto **SÍ utiliza Navigation Component**, pero de forma **inconsistente**. Se identificaron dos patrones de navegación:
+
+#### ✅ **Patrón 1: Usando Acciones (Recomendado)**
+```java
+// Ejemplo en LoginFragment
+NavHostFragment.findNavController(this)
+    .navigate(R.id.action_login_to_registro);
+```
+
+#### ⚠️ **Patrón 2: Navegación Directa (Sin usar acciones)**
+```java
+// Ejemplo en LoginFragment (al hacer login)
+NavHostFragment.findNavController(this)
+    .navigate(R.id.homeDashboardFragment, null, opts);
+```
+
+### 📊 Tabla de Uso Real de Acciones
+
+| Fragment | Navegación | ¿Usa Acción del nav_graph? | Observación |
+|----------|-----------|---------------------------|-------------|
+| **LoginFragment** | → RegistroRemitente | ✅ SÍ (`action_login_to_registro`) | Correcto |
+| **LoginFragment** | → Dashboard por rol | ❌ NO (navega directo al ID) | Podría usar acciones |
+| **RegistroRemitenteFragment** | → Login | ❌ NO definida (falta implementar) | Acción existe pero no se usa |
+| **HomeDashboardFragment** | → SolicitarRecolección | ✅ SÍ con fallback | Tiene try-catch por si falla |
+| **HomeDashboardFragment** | → SolicitudMapa | ❌ NO implementado | Acción definida pero no usada |
+| **AsignadorFragment** | → ZonaDetalle | ❌ NO (navega directo) | Navega con Bundle manual |
+| **AsignadorFragment** | → GestionZonas | ✅ SÍ (`action_asignador_to_gestionZonas`) | Correcto |
+| **MisAsignacionesFragment** | → DetalleRecolección | ❌ NO (navega directo) | Acción existe pero no se usa |
+| **DetalleRecoleccionFragment** | → RecoleccionMapa | ✅/❌ MIXTO | A veces usa acción, a veces directo |
+| **RepartidorDashboardFragment** | → MisCalificaciones | ❌ NO implementado | Acción definida pero no usada |
+
+---
+
 ## 🗺️ Estructura de Navegación
 
 ### Componentes Principales
@@ -30,353 +67,352 @@ Este proyecto utiliza **Android Navigation Component**, que es la solución mode
 #### 1. **NavHostFragment** 
 - **Ubicación:** `activity_main.xml`
 - **ID:** `nav_host_fragment`
-- **Función:** Contenedor principal que aloja todos los fragmentos y gestiona las transiciones
-
-```xml
-<androidx.fragment.app.FragmentContainerView
-    android:id="@+id/nav_host_fragment"
-    android:name="androidx.navigation.fragment.NavHostFragment"
-    app:navGraph="@navigation/nav_graph" />
-```
+- **Función:** Contenedor principal que aloja todos los fragmentos
 
 #### 2. **Navigation Graph**
 - **Archivo:** `res/navigation/nav_graph.xml`
-- **Fragmentos:** 16 destinos diferentes
+- **Fragmentos:** 19 destinos diferentes
+- **Acciones definidas:** 15 acciones
 - **Destino inicial:** `loginFragment`
 
 #### 3. **NavController**
-- **Ubicación:** `MainActivity.java`
-- **Función:** Controlador que ejecuta las navegaciones entre fragmentos
-
-```java
-NavHostFragment navHost = (NavHostFragment) getSupportFragmentManager()
-    .findFragmentById(R.id.nav_host_fragment);
-navController = navHost.getNavController();
-```
+- **Ubicación:** `MainActivity.java` y cada Fragment
+- **Acceso:** `NavHostFragment.findNavController(this)`
+- **Función:** Controlador que ejecuta las navegaciones
 
 ---
 
 ## 🔄 Flujo de Navegación por Roles
 
-La aplicación implementa un sistema de navegación **basado en roles de usuario**. Después del login, el usuario es dirigido a diferentes pantallas según su rol:
+### Código Real de Navegación por Roles
+
+**Ubicación:** `LoginFragment.java` (líneas 85-103)
+
+```java
+// Navegar por rol
+int dest = R.id.homeDashboardFragment; // default REMITENTE
+switch (role.toUpperCase()) {
+    case "OPERADOR":
+    case "OPERADOR_HUB":
+        dest = R.id.hubDashboardFragment; break;
+    case "REPARTIDOR":
+        dest = R.id.repartidorDashboardFragment; break;
+    case "ASIGNADOR":
+        dest = R.id.asignadorFragment; break;
+    case "RECOLECTOR":
+        dest = R.id.misAsignacionesFragment; break;
+}
+
+NavOptions opts = new NavOptions.Builder()
+    .setPopUpTo(R.id.loginFragment, true)
+    .build();
+NavHostFragment.findNavController(this).navigate(dest, null, opts);
+```
 
 ### Mapa de Navegación por Rol
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       LOGIN FRAGMENT                         │
-│                    (Pantalla inicial)                        │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-         ┌──────────────┼──────────────┐
-         │              │              │
-         ▼              ▼              ▼
-    ┌────────┐    ┌──────────┐   ┌──────────┐
-    │REMITENTE│    │ASIGNADOR │   │RECOLECTOR│
-    └────┬───┘    └─────┬────┘   └────┬─────┘
-         │              │              │
-         ▼              ▼              ▼
-   ┌──────────┐   ┌──────────┐  ┌──────────────┐
-   │   HOME   │   │ASIGNADOR │  │     MIS      │
-   │DASHBOARD │   │ FRAGMENT │  │ASIGNACIONES  │
-   └──────────┘   └──────────┘  └──────────────┘
+                    ┌─────────────────┐
+                    │  LOGIN FRAGMENT │
+                    │  (app:startDest)│
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+         ┌────────┐    ┌──────────┐   ┌──────────┐
+         │REMITENTE│    │ASIGNADOR │   │RECOLECTOR│
+         └────┬───┘    └─────┬────┘   └────┬─────┘
+              │              │              │
+              ▼              ▼              ▼
+      ┌──────────────┐ ┌──────────┐ ┌───────────────┐
+      │homeDashboard │ │asignador │ │misAsignaciones│
+      └──────────────┘ └──────────┘ └───────────────┘
+              │              │              │
+              ▼              ▼              ▼
+      [Solicitudes]    [Gestión     [Detalle
+                        de Zonas]    Recolección]
 ```
 
 ### Roles Implementados
 
 | Rol | Pantalla Destino | Funcionalidad Principal |
 |-----|------------------|-------------------------|
-| **REMITENTE** (default) | `homeDashboardFragment` | Solicitar recolecciones, ver estado de solicitudes |
+| **REMITENTE** (default) | `homeDashboardFragment` | Solicitar recolecciones, ver estado |
 | **ASIGNADOR** | `asignadorFragment` | Gestionar zonas, asignar recolectores |
-| **RECOLECTOR** | `misAsignacionesFragment` | Ver y completar asignaciones de recolección |
-| **OPERADOR_HUB** | `hubDashboardFragment` | Gestión del hub de distribución |
+| **RECOLECTOR** | `misAsignacionesFragment` | Ver y completar asignaciones |
+| **OPERADOR_HUB** | `hubDashboardFragment` | Gestión del hub |
 | **REPARTIDOR** | `repartidorDashboardFragment` | Entregas y calificaciones |
 
 ---
 
-## 📊 Diagrama de Navegación Detallado
+## 📊 Diagramas de Navegación Detallados
 
 ### 1. Flujo de Autenticación
 ```
 loginFragment
-    ├─→ registroRemitenteFragment (acción: action_login_to_registro)
-    │       └─→ loginFragment (acción: action_registro_to_login)
     │
-    └─→ [Destinos según rol con popUpTo inclusive]
+    ├─→ registroRemitenteFragment 
+    │   (acción: action_login_to_registro) ✅ USADA
+    │       │
+    │       └─→ loginFragment 
+    │           (acción: action_registro_to_login) ❌ NO USADA
+    │
+    └─→ [Destinos según rol] ❌ NAVEGACIÓN DIRECTA
+        (popUpTo: loginFragment, inclusive: true)
 ```
 
 ### 2. Flujo de REMITENTE
 ```
 homeDashboardFragment
-    ├─→ solicitarRecoleccionFragment (action_home_to_solicitar)
-    └─→ solicitudMapaFragment (action_home_to_solicitudMapa)
+    │
+    ├─→ solicitarRecoleccionFragment 
+    │   (action_home_to_solicitar) ✅ USADA con fallback
+    │       │
+    │       └─→ navigateUp() al terminar
+    │
+    └─→ solicitudMapaFragment 
+        (action_home_to_solicitudMapa) ❌ NO USADA
 ```
 
-### 3. Flujo de ASIGNADOR
+### 3. Flujo de ASIGNADOR (Más Complejo)
 ```
 asignadorFragment
-    ├─→ zonaDetalleFragment (action_asignador_to_zonaDetalle)
-    │       └─→ [Detalle de zona con argumentos: fecha, zona, zoneId]
     │
-    └─→ gestionZonasFragment (action_asignador_to_gestionZonas)
-            └─→ zoneMapEditorFragment (action_gestionZonas_to_zoneMapEditor)
-                    └─→ [Editor de polígono con argumento: zoneId]
+    ├─→ zonaDetalleFragment 
+    │   ❌ NAVEGACIÓN DIRECTA con Bundle
+    │   Args: {fecha, zona, zoneId}
+    │       │
+    │       └─→ zonaMapaFullFragment (posible)
+    │
+    └─→ gestionZonasFragment 
+        (action_asignador_to_gestionZonas) ✅ USADA
+            │
+            └─→ zoneMapEditorFragment 
+                (action_gestionZonas_to_zoneMapEditor) ✅ USADA
+                Args: {zoneId: -1 default}
 ```
 
 ### 4. Flujo de RECOLECTOR
 ```
 misAsignacionesFragment
-    └─→ detalleRecoleccionFragment (action_misAsignaciones_to_detalle)
-            ├─→ recoleccionMapaFragment (action_detalle_to_recoleccionMapa)
-            └─→ [Argumentos: asignacionId]
+    │
+    └─→ detalleRecoleccionFragment 
+        (action_misAsignaciones_to_detalle) ❌ DEFINIDA pero NO USADA
+        En su lugar: navegación directa con Bundle
+        Args: {asignacionId}
+            │
+            └─→ recoleccionMapaFragment 
+                MIXTO: a veces usa action_detalle_to_recoleccionMapa ✅
+                       a veces navega directo ❌
 ```
 
 ### 5. Flujo de REPARTIDOR
 ```
 repartidorDashboardFragment
-    └─→ misCalificacionesFragment (action_repartidor_to_calificaciones)
+    │
+    └─→ misCalificacionesFragment 
+        (action_repartidor_to_calificaciones) ❌ NO IMPLEMENTADA
 ```
 
 ---
 
-## 🎬 Animaciones de Transición
+## 🔧 Implementación Técnica Real
 
-El proyecto incluye animaciones personalizadas para las transiciones:
-
-### Archivos de Animación
-- **`slide_in_right.xml`** - Entrada desde la derecha
-- **`slide_in_left.xml`** - Entrada desde la izquierda
-- **`slide_out_right.xml`** - Salida hacia la derecha
-- **`slide_out_left.xml`** - Salida hacia la izquierda
-
-### Características
-- **Duración:** 250ms
-- **Interpolador:** `fast_out_slow_in` (Material Design)
-- **Efectos:** Translación + Alpha (desvanecimiento)
-
-```xml
-<translate
-    android:fromXDelta="100%"
-    android:toXDelta="0%"
-    android:duration="250" />
-<alpha android:fromAlpha="0" android:toAlpha="1" android:duration="250"/>
-```
-
----
-
-## 🔧 Implementación Técnica
-
-### Dependencias Utilizadas
-```kotlin
-// Navigation Component
-implementation("androidx.navigation:navigation-fragment:2.7.7")
-implementation("androidx.navigation:navigation-ui:2.7.7")
-implementation("androidx.navigation:navigation-runtime:2.7.7")
-```
-
-### Paso de Argumentos
-
-El sistema utiliza argumentos tipados definidos en el nav_graph:
-
-#### Ejemplo 1: Detalle de Recolección
-```xml
-<fragment android:id="@+id/detalleRecoleccionFragment">
-    <argument 
-        android:name="asignacionId" 
-        app:argType="integer" />
-</fragment>
-```
-
-#### Ejemplo 2: Detalle de Zona
-```xml
-<fragment android:id="@+id/zonaDetalleFragment">
-    <argument android:name="fecha" app:argType="string" />
-    <argument android:name="zona" app:argType="string" />
-    <argument android:name="zoneId" app:argType="integer" android:defaultValue="-1" />
-</fragment>
-```
-
-### Navegación Programática
-
-#### En MainActivity (navegación por rol):
+### Método 1: Navegación con Acción (Usado en algunos casos)
 ```java
-private void navigateByRole(String role) {
-    int destId;
-    switch (role.toUpperCase()) {
-        case "OPERADOR_HUB":
-            destId = R.id.hubDashboardFragment; break;
-        case "REPARTIDOR":
-            destId = R.id.repartidorDashboardFragment; break;
-        case "ASIGNADOR":
-            destId = R.id.asignadorFragment; break;
-        case "RECOLECTOR":
-            destId = R.id.misAsignacionesFragment; break;
-        default:
-            destId = R.id.homeDashboardFragment; break;
-    }
-    
-    NavOptions opts = new NavOptions.Builder()
-        .setPopUpTo(R.id.loginFragment, true)
-        .build();
-    navController.navigate(destId, null, opts);
-}
-```
-
-#### En Fragmentos:
-```java
-// Navegación simple
+// LoginFragment → RegistroRemitente
 NavHostFragment.findNavController(this)
-    .navigate(R.id.action_home_to_solicitar);
-
-// Navegación con argumentos (usando Bundle)
-Bundle args = new Bundle();
-args.putInt("asignacionId", asignacionId);
-NavHostFragment.findNavController(this)
-    .navigate(R.id.action_misAsignaciones_to_detalle, args);
+    .navigate(R.id.action_login_to_registro);
 ```
 
----
-
-## 🛡️ Gestión del Back Stack
-
-### popUpTo y popUpToInclusive
-
-El proyecto utiliza estrategias de back stack management:
-
-#### Login → Dashboard (No volver al login con back)
-```xml
-<action
-    android:id="@+id/action_login_to_home"
-    app:destination="@id/homeDashboardFragment"
-    app:popUpTo="@id/loginFragment"
-    app:popUpToInclusive="true" />
-```
-
-Esto significa:
-- ✅ Al presionar back desde el dashboard, la app se cierra
-- ✅ No se regresa al login
-- ✅ Se limpia el stack hasta el login (inclusive)
-
-### Logout
+### Método 2: Navegación Directa con Bundle (Más común)
 ```java
-private void doLogout() {
-    new SessionManager(this).logout();
-    NavOptions opts = new NavOptions.Builder()
-        .setPopUpTo(navController.getGraph().getStartDestinationId(), true)
-        .build();
-    navController.navigate(R.id.loginFragment, null, opts);
+// AsignadorFragment → ZonaDetalle
+Bundle b = new Bundle();
+b.putString("fecha", fechaSel);
+b.putString("zona", item.zona);
+b.putInt("zoneId", (int) zoneId);
+
+androidx.navigation.Navigation.findNavController(requireView())
+    .navigate(R.id.zonaDetalleFragment, b);
+```
+
+### Método 3: Navegación con NavOptions
+```java
+// LoginFragment al hacer login exitoso
+NavOptions opts = new NavOptions.Builder()
+    .setPopUpTo(R.id.loginFragment, true)
+    .build();
+NavHostFragment.findNavController(this).navigate(finalDest, null, opts);
+```
+
+### Método 4: Navegación con Try-Catch Fallback
+```java
+// HomeDashboardFragment
+NavController nav = NavHostFragment.findNavController(this);
+try { 
+    nav.navigate(R.id.action_home_to_solicitar); 
+} catch (Exception ignore) { 
+    nav.navigate(R.id.solicitarRecoleccionFragment); 
 }
 ```
 
 ---
 
-## 📱 Características Especiales
+## 🛠️ RECOMENDACIONES DE MEJORA
 
-### 1. **Deep Linking**
-El NavHostFragment está configurado con:
-```xml
-app:defaultNavHost="true"
+### ❌ Problemas Identificados
+
+1. **Inconsistencia:** Mezcla de navegación con acciones y navegación directa
+2. **Acciones no utilizadas:** 8 de 15 acciones definidas no se usan en el código
+3. **Código duplicado:** Múltiples formas de navegar al mismo destino
+4. **Mantenibilidad:** Difícil de seguir el flujo de navegación
+
+### ✅ Soluciones Propuestas
+
+#### Opción A: Usar SIEMPRE acciones (Recomendado)
+**Ventajas:**
+- Consistencia total
+- Aprovecha el nav_graph completo
+- Más fácil de visualizar
+- Refactoring más simple
+
+**Implementación:**
+```java
+// EN VEZ DE:
+NavHostFragment.findNavController(this)
+    .navigate(R.id.zonaDetalleFragment, bundle);
+
+// USAR:
+NavHostFragment.findNavController(this)
+    .navigate(R.id.action_asignador_to_zonaDetalle, bundle);
 ```
-Esto permite que el fragmento maneje automáticamente el botón back del sistema.
 
-### 2. **Menú de Opciones**
-- **Archivo:** `res/menu/main_menu.xml`
-- **Acción:** Logout desde cualquier pantalla
-- **Implementación:** En MainActivity
+#### Opción B: Navegación Directa Consistente
+**Ventajas:**
+- Menos dependencia del nav_graph
+- Más flexible para cambios dinámicos
 
-### 3. **Toolbar Integrado**
-```xml
-<com.google.android.material.appbar.MaterialToolbar
-    android:id="@+id/topAppBar"
-    app:title="@string/app_name"
-    app:titleCentered="true" />
+**Implementación:**
+```java
+// Siempre usar el ID del destino + bundle
+Navigation.findNavController(view)
+    .navigate(R.id.destinoFragment, args);
+```
+
+### 🎯 Plan de Refactorización Recomendado
+
+1. **Fase 1:** Completar implementación de acciones faltantes
+   - `action_misAsignaciones_to_detalle`
+   - `action_home_to_solicitudMapa`
+   - `action_repartidor_to_calificaciones`
+   - `action_registro_to_login` (en RegistroRemitenteFragment)
+
+2. **Fase 2:** Reemplazar navegaciones directas por acciones
+   - LoginFragment (navegación por roles)
+   - AsignadorFragment (a zonaDetalle)
+   - MisAsignacionesFragment (a detalle)
+
+3. **Fase 3:** Eliminar código duplicado
+   - Remover fallbacks try-catch
+   - Unificar método de navegación
+
+4. **Fase 4:** Agregar Safe Args (opcional pero recomendado)
+   ```gradle
+   id 'androidx.navigation.safeargs'
+   ```
+
+---
+
+## 📱 Características Especiales Implementadas
+
+### 1. **Gestión de Sesión Integrada**
+```java
+SessionManager sm = new SessionManager(requireContext());
+sm.login(email, role);
+```
+
+### 2. **Back Stack Management**
+```java
+// Al hacer login: limpiar stack hasta login (inclusive)
+.setPopUpTo(R.id.loginFragment, true)
+
+// Al hacer logout: volver al inicio
+.setPopUpTo(navController.getGraph().getStartDestinationId(), true)
+```
+
+### 3. **Navegación en Background Thread**
+```java
+// AsignadorFragment - resolver zona antes de navegar
+io.execute(() -> {
+    long zoneId = resolveZoneId(item.zona);
+    Bundle b = new Bundle();
+    b.putInt("zoneId", (int) zoneId);
+    runOnUi(() -> {
+        Navigation.findNavController(requireView())
+            .navigate(R.id.zonaDetalleFragment, b);
+    });
+});
 ```
 
 ---
 
 ## 🎨 Patrón de Diseño
 
-### Single Activity Architecture
+### Single Activity Architecture ✅
 
-Este proyecto sigue el patrón **Single Activity** recomendado por Google:
-- ✅ Una sola Activity (MainActivity)
-- ✅ Múltiples Fragments para diferentes pantallas
-- ✅ NavController gestiona todas las transiciones
-- ✅ Estado compartido mediante ViewModel (si se implementa)
+Este proyecto implementa correctamente el patrón **Single Activity** recomendado por Google:
 
-### Ventajas
-1. **Simplicidad:** Un solo ciclo de vida de Activity
-2. **Transiciones suaves:** Animaciones entre fragments
-3. **Menor overhead:** No crear/destruir Activities constantemente
-4. **Mejor experiencia:** Transiciones más fluidas
+- **1 Activity:** `MainActivity.java`
+- **19 Fragments:** Todos los destinos son fragments
+- **Navigation Component:** Maneja todas las transiciones
 
----
-
-## 📈 Escalabilidad
-
-El sistema de navegación está diseñado para:
-- ✅ Agregar nuevos roles fácilmente
-- ✅ Crear nuevos flujos de navegación
-- ✅ Mantener el código organizado
-- ✅ Facilitar el testing
-
-### Agregar un nuevo destino:
-1. Crear el Fragment en `ui/`
-2. Agregar al `nav_graph.xml`
-3. Definir acciones desde otros fragmentos
-4. Opcional: Agregar al switch de roles
+**Ventajas implementadas:**
+- ✅ Transiciones fluidas entre pantallas
+- ✅ Un solo ciclo de vida de Activity
+- ✅ Menor uso de memoria
+- ✅ Paso de datos simplificado
 
 ---
 
-## 🔍 Resumen de Destinos
+## 📦 Dependencias Utilizadas
 
-| # | Fragment | Función | Argumentos |
-|---|----------|---------|------------|
-| 1 | loginFragment | Autenticación | - |
-| 2 | registroRemitenteFragment | Registro de usuarios | - |
-| 3 | homeDashboardFragment | Dashboard remitente | - |
-| 4 | solicitarRecoleccionFragment | Solicitar recolección | - |
-| 5 | solicitudMapaFragment | Ver solicitud en mapa | - |
-| 6 | asignadorFragment | Panel asignador | - |
-| 7 | gestionZonasFragment | Gestión de zonas | - |
-| 8 | zoneMapEditorFragment | Editor de zonas | zoneId |
-| 9 | zonaDetalleFragment | Detalle zona | fecha, zona, zoneId |
-| 10 | zonaMapaFullFragment | Mapa fullscreen | fecha, zona, zoneId |
-| 11 | misAsignacionesFragment | Lista asignaciones | - |
-| 12 | detalleRecoleccionFragment | Detalle recolección | asignacionId |
-| 13 | recoleccionMapaFragment | Mapa recolección | - |
-| 14 | hubDashboardFragment | Dashboard hub | - |
-| 15 | repartidorDashboardFragment | Dashboard repartidor | - |
-| 16 | misCalificacionesFragment | Ver calificaciones | - |
-| 17 | entregaFragment | Gestión entrega | manifiestoItemId |
-| 18 | poligonoRutaPreviewFragment | Preview ruta | zoneId, fecha |
-
-**Total: 18 destinos de navegación**
+```kotlin
+// build.gradle.kts (módulo app)
+implementation("androidx.navigation:navigation-fragment:2.7.7")
+implementation("androidx.navigation:navigation-ui:2.7.7")
+implementation("androidx.navigation:navigation-runtime:2.7.7")
+```
 
 ---
 
-## 💡 Conclusiones
+## 🚀 CONCLUSIÓN
 
-La aplicación de Encomiendas utiliza un sistema de navegación **moderno, escalable y mantenible** basado en Navigation Component de Android Jetpack. 
+### Estado Actual
+✅ **Funcional:** La navegación funciona correctamente  
+⚠️ **Mejorable:** Falta consistencia y aprovechamiento completo del nav_graph  
+🔧 **Mantenible:** Con refactorización moderada puede ser excelente
 
-### Fortalezas:
-✅ Arquitectura clara y organizada  
-✅ Separación de roles bien definida  
-✅ Animaciones fluidas  
-✅ Back stack management correcto  
-✅ Paso de argumentos tipado y seguro  
-✅ Fácil de extender y mantener  
+### Respuesta a las Preguntas de la Diapositiva 8
 
-### Tecnologías:
-- **Navigation Component 2.7.7**
-- **Single Activity Architecture**
-- **Fragment-based navigation**
-- **Material Design Components**
+#### 1. ¿Qué mecanismo de navegación usas?
+**Respuesta:** Android Navigation Component (Jetpack Navigation) implementado de forma mixta: algunas navegaciones usan acciones del nav_graph, otras navegan directamente a los IDs de destino.
+
+#### 2. ¿Cómo manejas el back stack?
+**Respuesta:** Usando `NavOptions.Builder()` con `popUpTo()` y `popUpToInclusive` para limpiar el stack en navegaciones críticas (login → dashboard, logout → login).
+
+#### 3. ¿Cómo pasas datos entre pantallas?
+**Respuesta:** Mediante Bundle manual con argumentos definidos en el nav_graph (tipados como integer, string, etc.). Los argumentos se pasan en el método `navigate(destinoId, bundle)`.
+
+#### 4. ¿Dónde está definido tu flujo de navegación?
+**Respuesta:** En `res/navigation/nav_graph.xml` con 19 fragmentos y 15 acciones definidas, aunque no todas las acciones se usan en el código Java.
+
+#### 5. ¿Es escalable tu implementación?
+**Respuesta:** Parcialmente. Es escalable en estructura pero necesita refactorización para ser consistente. Recomendación: migrar todas las navegaciones a usar acciones del nav_graph o usar Safe Args para type-safety.
 
 ---
 
-**Autor:** [Tu Nombre]  
-**Curso:** Desarrollo de Aplicaciones Móviles  
-**Laboratorio:** List Views and Adapters - Navegación Android  
-**Fecha:** Octubre 2025
-
+**Elaborado por:** Sistema de Análisis de Navegación  
+**Fecha:** Octubre 2025  
+**Versión:** 1.1 (Análisis Real de Implementación)

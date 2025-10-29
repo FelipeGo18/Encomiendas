@@ -50,4 +50,18 @@ public interface RecolectorDao {
     List<RecolectorPos> positionsByZona(String zona);
 
     class RecolectorPos { public int id; public Double lat; public Double lon; }
+
+    // ========== QUERIES PARA ESTADÍSTICAS ADMIN ==========
+
+    @Query("SELECT COUNT(*) FROM recolectores")
+    int getTotalRecolectores();
+
+    @Query("SELECT COUNT(*) FROM recolectores WHERE activo = 1")
+    int getTotalRecolectoresActivos();
+
+    @Query("SELECT r.id, r.nombre, COUNT(s.id) as completadas " +
+           "FROM recolectores r " +
+           "LEFT JOIN Solicitud s ON s.recolectorId = r.id AND s.estado = 'RECOLECTADA' " +
+           "GROUP BY r.id ORDER BY completadas DESC")
+    List<RecolectorStats> getRecolectorStats();
 }

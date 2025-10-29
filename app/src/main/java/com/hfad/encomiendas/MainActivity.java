@@ -77,7 +77,9 @@ public class MainActivity extends AppCompatActivity {
                 R.id.asignadorFragment,
                 R.id.misAsignacionesFragment,
                 R.id.hubDashboardFragment,
-                R.id.repartidorDashboardFragment
+                R.id.repartidorDashboardFragment,
+                R.id.adminFragment,
+                R.id.estadisticasFragment
         ).build();
 
         // Conectar toolbar con Navigation
@@ -158,6 +160,8 @@ public class MainActivity extends AppCompatActivity {
         if (role == null) return R.menu.main_menu;
 
         switch (role.toUpperCase()) {
+            case "ADMIN":
+                return R.menu.menu_admin;
             case "REMITENTE":
                 return R.menu.menu_remitente;
             case "RECOLECTOR":
@@ -188,6 +192,15 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
 
+        // Acciones específicas de ADMIN
+        if (itemId == R.id.action_statistics) {
+            navController.navigate(R.id.estadisticasFragment);
+            return true;
+        } else if (itemId == R.id.action_manage_users) {
+            Toast.makeText(this, "Gestión de usuarios - Por implementar", Toast.LENGTH_SHORT).show();
+            return true;
+        }
+
         // Acciones específicas de REMITENTE
         if (itemId == R.id.action_my_requests) {
             navController.navigate(R.id.homeDashboardFragment);
@@ -215,9 +228,6 @@ public class MainActivity extends AppCompatActivity {
             return true;
         } else if (itemId == R.id.action_view_assignments) {
             navController.navigate(R.id.asignadorFragment);
-            return true;
-        } else if (itemId == R.id.action_statistics) {
-            Toast.makeText(this, "Estadísticas - Por implementar", Toast.LENGTH_SHORT).show();
             return true;
         }
 
@@ -337,6 +347,8 @@ public class MainActivity extends AppCompatActivity {
         String role = (roleRaw == null ? "" : roleRaw.trim().toUpperCase());
         int destId;
         switch (role) {
+            case "ADMIN":
+                destId = R.id.adminFragment; break;
             case "OPERADOR":
             case "OPERADOR_HUB":
                 destId = R.id.hubDashboardFragment; break;

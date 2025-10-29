@@ -85,6 +85,8 @@ public class LoginFragment extends Fragment {
                 // Navegar por rol
                 int dest = R.id.homeDashboardFragment; // default REMITENTE
                 switch (role.toUpperCase()) {
+                    case "ADMIN":
+                        dest = R.id.adminFragment; break;
                     case "OPERADOR":
                     case "OPERADOR_HUB":
                         dest = R.id.hubDashboardFragment; break;

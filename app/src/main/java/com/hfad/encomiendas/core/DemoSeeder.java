@@ -43,6 +43,7 @@ public final class DemoSeeder {
                 ensureUser(udao, "operador@gmail.com",    "123456", "OPERADOR_HUB");
                 ensureUser(udao, "repartidor1@gmail.com", "123456", "REPARTIDOR");
                 ensureUser(udao,"asignador@gmail.com","123456","ASIGNADOR");
+                ensureUser(udao,"admin@gmail.com","123456","ADMIN");
 
                 // 2) Verificar si ya hay solicitudes antes de crear nuevas
                 SolicitudDao sdao = db.solicitudDao();

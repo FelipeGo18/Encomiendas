@@ -28,4 +28,12 @@ public interface UserDao {
     // (Opcional) Todos
     @Query("SELECT * FROM users ORDER BY id DESC")
     List<User> listAll();
+
+    // ========== QUERIES PARA ESTADÍSTICAS (SOLO LAS QUE SE USAN) ==========
+
+    @Query("SELECT COUNT(*) FROM users")
+    int getTotalUsuarios();
+
+    @Query("SELECT rol, COUNT(*) as count FROM users GROUP BY rol")
+    List<RolCount> getCountByRol();
 }
