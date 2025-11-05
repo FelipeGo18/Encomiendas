@@ -43,7 +43,7 @@
             app:destination="@id/homeDashboardFragment"
             app:popUpTo="@id/loginFragment"
             app:popUpToInclusive="true" />
-        <!-- Entrar como ADMIN -->
+        <!-- Ir a Admin -->
         <action
             android:id="@+id/action_login_to_admin"
             app:destination="@id/adminFragment"
@@ -60,23 +60,6 @@
             android:id="@+id/action_registro_to_login"
             app:destination="@id/loginFragment" />
     </fragment>
-
-    <!-- ADMIN: Panel de Administrador -->
-    <fragment
-        android:id="@+id/adminFragment"
-        android:name="com.hfad.encomiendas.ui.AdminFragment"
-        android:label="Admin" >
-        <!-- Acción para navegar a estadísticas -->
-        <action
-            android:id="@+id/action_admin_to_estadisticas"
-            app:destination="@id/estadisticasFragment" />
-    </fragment>
-
-    <!-- ESTADÍSTICAS (para Admin y otros roles) -->
-    <fragment
-        android:id="@+id/estadisticasFragment"
-        android:name="com.hfad.encomiendas.ui.EstadisticasFragment"
-        android:label="Estadísticas" />
 
     <!-- REMITENTE: Solicitar recolección -->
     <fragment
@@ -230,5 +213,21 @@
         <argument android:name="zona" app:argType="string" />
         <argument android:name="zoneId" app:argType="integer" android:defaultValue="-1" />
     </fragment>
+
+    <!-- ADMIN: Panel de Administrador -->
+    <fragment
+        android:id="@+id/adminFragment"
+        android:name="com.hfad.encomiendas.ui.AdminFragment"
+        android:label="Administrador">
+        <action
+            android:id="@+id/action_admin_to_estadisticas"
+            app:destination="@id/estadisticasFragment" />
+    </fragment>
+
+    <!-- ADMIN: Dashboard de Estadísticas -->
+    <fragment
+        android:id="@+id/estadisticasFragment"
+        android:name="com.hfad.encomiendas.ui.EstadisticasFragment"
+        android:label="Estadísticas" />
 
 </navigation>

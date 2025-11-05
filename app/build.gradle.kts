@@ -54,6 +54,9 @@ dependencies {
     implementation("androidx.cardview:cardview:1.0.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
+    // --- Charts para gráficas ---
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+
     // --- Navigation (¡clave para los atributos app:startDestination, app:destination, app:argType!) ---
     val nav = "2.7.7"
     implementation("androidx.navigation:navigation-fragment:$nav")
