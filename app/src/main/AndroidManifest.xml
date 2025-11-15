@@ -14,7 +14,9 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
+        android:name=".EncomiendasApp"
         android:allowBackup="true"
+        android:usesCleartextTraffic="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -54,6 +56,11 @@
             android:name=".core.TrackingForegroundService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- Servicio de monitoreo del servidor -->
+        <service
+            android:name=".core.ServerMonitoringService"
+            android:exported="false" />
 
     </application>
 </manifest>

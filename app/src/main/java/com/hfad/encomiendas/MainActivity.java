@@ -25,6 +25,7 @@ import androidx.navigation.ui.NavigationUI;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.hfad.encomiendas.api.ApiTester;
 import com.hfad.encomiendas.core.NotificationHelper;
 import com.hfad.encomiendas.core.SessionManager;
 
@@ -49,6 +50,10 @@ public class MainActivity extends AppCompatActivity {
 
         // Inicializar SessionManager
         sessionManager = new SessionManager(this);
+
+        // 🔥 PRUEBA DE CONEXIÓN CON LA API
+        // ✅ DESCOMENTAR para probar la conexión con GlassFish
+        ApiTester.testConnection(this);
 
         // Configurar toolbar
         toolbar = findViewById(R.id.topAppBar);
@@ -104,6 +109,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Datos demo si quieres, no afecta el nav state
         seedDemoData();
+
 
         // Simular notificaciones (esto lo conectarías con tu lógica real)
         simulateNotifications();

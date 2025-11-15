@@ -73,6 +73,18 @@ public class LoginFragment extends Fragment {
                 User u = db.userDao().findByEmail(email);
                 String hash = PasswordUtils.sha256(pass);
 
+                // Si el usuario NO existe en Room, intentar buscarlo en la API
+                if (u == null) {
+                    // Intentar sincronizar este usuario específico desde la API
+                    boolean syncSuccess = sincronizarUsuarioDesdeAPI(email, hash);
+
+                    if (syncSuccess) {
+                        // Volver a buscar en Room después de sincronizar
+                        u = db.userDao().findByEmail(email);
+                    }
+                }
+
+                // Validar credenciales
                 if (u == null || u.passwordHash == null || !u.passwordHash.equals(hash)) {
                     runOnUi(() -> { if (tilPass!=null) tilPass.setError("Credenciales inválidas"); });
                     return;
@@ -99,16 +111,53 @@ public class LoginFragment extends Fragment {
                 }
                 int finalDest = dest;
                 runOnUi(() -> {
-                    NavOptions opts = new NavOptions.Builder()
-                            .setPopUpTo(R.id.loginFragment, true)
-                            .build();
-                    NavHostFragment.findNavController(this).navigate(finalDest, null, opts);
+                    NavHostFragment.findNavController(this)
+                            .navigate(finalDest, null,
+                                    new NavOptions.Builder()
+                                            .setPopUpTo(R.id.loginFragment, true)
+                                            .build());
                 });
-
             } catch (Exception e) {
+                e.printStackTrace();
                 runOnUi(() -> { if (tilPass!=null) tilPass.setError("Error: " + e.getMessage()); });
             }
         });
+    }
+
+    /**
+     * Sincronizar un usuario específico desde la API
+     * @param email Email del usuario a buscar
+     * @param expectedHash Hash esperado de la contraseña
+     * @return true si se sincronizó exitosamente
+     */
+    private boolean sincronizarUsuarioDesdeAPI(String email, String expectedHash) {
+        try {
+            // Buscar usuario en la API por email
+            com.hfad.encomiendas.api.UserApi api = com.hfad.encomiendas.api.ApiClient.getUserApi();
+            retrofit2.Response<com.hfad.encomiendas.data.User> response =
+                api.getUserByEmail(email).execute();
+
+            if (response.isSuccessful() && response.body() != null) {
+                User userFromApi = response.body();
+
+                // Verificar que la contraseña coincida
+                if (userFromApi.passwordHash != null &&
+                    userFromApi.passwordHash.equals(expectedHash)) {
+
+                    // Guardar el usuario en Room
+                    AppDatabase db = AppDatabase.getInstance(requireContext());
+                    db.userDao().insert(userFromApi);
+
+                    android.util.Log.d("LoginFragment",
+                        "✅ Usuario sincronizado desde API: " + email);
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.e("LoginFragment",
+                "❌ Error sincronizando usuario: " + e.getMessage());
+        }
+        return false;
     }
 
     private void runOnUi(Runnable r) { if (!isAdded()) return; requireActivity().runOnUiThread(r); }

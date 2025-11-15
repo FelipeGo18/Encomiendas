@@ -4,6 +4,8 @@ package com.hfad.encomiendas.core;
 import android.content.Context;
 import android.util.Log;
 
+import com.hfad.encomiendas.api.ApiClient;
+import com.hfad.encomiendas.api.UserApi;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.Manifiesto;
 import com.hfad.encomiendas.data.ManifiestoDao;
@@ -31,19 +33,19 @@ public final class DemoSeeder {
         try {
             AppDatabase db = AppDatabase.getInstance(ctx);
 
+            // ✅ NUEVA ESTRATEGIA: Sincronizar usuarios desde la API (GlassFish JPA)
+            syncUsersFromAPI(ctx);
+
+            // ✅ Sincronizar recolectores desde la API
+            syncRecolectoresFromAPI(ctx);
+
             // ✅ CORREGIDO: No borrar datos existentes, solo agregar datos demo si no existen
             db.runInTransaction(() -> {
-                // ❌ REMOVIDO: db.clearAllTables(); <- ESTO CAUSABA LA PÉRDIDA DE DATOS
-
                 UserDao udao = db.userDao();
 
-                // 1) Usuarios - Solo crear si no existen
-                long remitenteId = ensureUser(udao,
-                        "remitente.demo@gmail.com", "123456", "REMITENTE");
-                ensureUser(udao, "operador@gmail.com",    "123456", "OPERADOR_HUB");
-                ensureUser(udao, "repartidor1@gmail.com", "123456", "REPARTIDOR");
-                ensureUser(udao,"asignador@gmail.com","123456","ASIGNADOR");
-                ensureUser(udao,"admin@gmail.com","123456","ADMIN");
+                // 1) Obtener ID del remitente demo para las solicitudes
+                User remitenteDemo = udao.findByEmail("remitente.demo@gmail.com");
+                long remitenteId = (remitenteDemo != null) ? remitenteDemo.id : 0;
 
                 // 2) Verificar si ya hay solicitudes antes de crear nuevas
                 SolicitudDao sdao = db.solicitudDao();
@@ -90,36 +92,8 @@ public final class DemoSeeder {
                     }
                 }
 
-                RecolectorDao rdao = db.recolectorDao();
-                if (rdao.listAll().isEmpty()) {
-                    Recolector r1 = new Recolector();
-                    r1.nombre = "Juan R."; r1.municipio = "Bogotá"; r1.zona = "Chicó";
-                    r1.vehiculo = "MOTO"; r1.capacidad = 10; r1.cargaActual = 0; r1.activo = true;
-                    r1.userEmail = "recolector@gmail.com"; r1.createdAt = System.currentTimeMillis();
-                    db.recolectorDao().insert(r1);
-
-                    Recolector r2 = new Recolector();
-                    r2.nombre = "Ana P."; r2.municipio = "Bogotá"; r2.zona = "Chapinero";
-                    r2.vehiculo = "BICI"; r2.capacidad = 8; r2.cargaActual = 0; r2.activo = true;
-                    r2.userEmail = "recolector2@gmail.com"; r2.createdAt = System.currentTimeMillis();
-                    db.recolectorDao().insert(r2);
-                }
-
-                if (udao.findByEmail("recolector@gmail.com") == null) {
-                    User u = new User();
-                    u.email = "recolector@gmail.com";
-                    u.passwordHash = PasswordUtils.sha256("123456");
-                    u.rol = "RECOLECTOR";
-                    u.createdAt = System.currentTimeMillis();
-                    udao.insert(u);
-                } else if (udao.findByEmail("recolector2@gmail.com") == null) {
-                    User u = new User();
-                    u.email = "recolector2@gmail.com";
-                    u.passwordHash = PasswordUtils.sha256("123456");
-                    u.rol = "RECOLECTOR";
-                    u.createdAt = System.currentTimeMillis();
-                    udao.insert(u);
-                }
+                // ❌ REMOVIDO: Ya no creamos recolectores ni usuarios localmente
+                // Todo viene de la API de GlassFish ahora
 
                 // 3) Manifiesto + 3 ítems (solo si no existe ya)
                 ManifiestoDao mdao = db.manifiestoDao();
@@ -159,21 +133,102 @@ public final class DemoSeeder {
                 }
             });
 
-            Log.d(TAG, "Seeder DEMO OK: 1 manifiesto + 3 ítems");
+            Log.d(TAG, "Seeder DEMO OK: Usuarios sincronizados desde API");
         } catch (Exception e) {
             Log.e(TAG, "Seeder error", e);
         }
     }
 
+    /**
+     * ✅ NUEVO: Sincronizar usuarios desde la API de GlassFish
+     * Descarga los 5 usuarios definidos en el servidor y los guarda en Room
+     */
+    private static void syncUsersFromAPI(Context ctx) {
+        new Thread(() -> {
+            try {
+                Log.d(TAG, "📡 Sincronizando usuarios desde API GlassFish...");
+
+                UserApi api = ApiClient.getUserApi();
+                retrofit2.Response<List<User>> response = api.getAllUsers().execute();
+
+                if (response.isSuccessful() && response.body() != null) {
+                    List<User> usuariosAPI = response.body();
+                    Log.d(TAG, "✅ Descargados " + usuariosAPI.size() + " usuarios de la API");
+
+                    AppDatabase db = AppDatabase.getInstance(ctx);
+                    UserDao udao = db.userDao();
+
+                    for (User user : usuariosAPI) {
+                        try {
+                            User existente = udao.findByEmail(user.email);
+
+                            if (existente != null) {
+                                // Actualizar si existe
+                                user.id = existente.id;
+                                udao.update(user);
+                                Log.d(TAG, "📝 Actualizado: " + user.email + " (" + user.rol + ")");
+                            } else {
+                                // Insertar si no existe
+                                udao.insert(user);
+                                Log.d(TAG, "➕ Insertado: " + user.email + " (" + user.rol + ")");
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "❌ Error procesando usuario: " + e.getMessage());
+                        }
+                    }
+
+                    Log.d(TAG, "💾 ✅ Usuarios sincronizados correctamente desde API");
+
+                } else {
+                    Log.e(TAG, "❌ Error en respuesta API: " + response.code());
+                    Log.w(TAG, "⚠️ Usando usuarios locales como fallback");
+                    createLocalUsersAsFallback(ctx);
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "❌ Error conectando con API: " + e.getMessage());
+                Log.w(TAG, "⚠️ Usando usuarios locales como fallback");
+                createLocalUsersAsFallback(ctx);
+            }
+        }).start();
+
+        // Esperar un momento para que se complete la sincronización
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Crear usuarios locales como fallback si la API no está disponible
+     */
+    private static void createLocalUsersAsFallback(Context ctx) {
+        try {
+            AppDatabase db = AppDatabase.getInstance(ctx);
+            UserDao udao = db.userDao();
+
+            ensureUser(udao, "remitente.demo@gmail.com", "123456", "REMITENTE");
+            ensureUser(udao, "operador@gmail.com", "123456", "OPERADOR_HUB");
+            ensureUser(udao, "repartidor1@gmail.com", "123456", "REPARTIDOR");
+            ensureUser(udao, "asignador@gmail.com", "123456", "ASIGNADOR");
+            ensureUser(udao, "admin@gmail.com", "123456", "ADMIN");
+
+            Log.d(TAG, "✅ Usuarios locales creados como fallback");
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Error creando usuarios fallback: " + e.getMessage());
+        }
+    }
+
     private static long ensureUser(UserDao udao, String email, String pass, String rol) {
         User u = udao.findByEmail(email);
-        if (u != null) return u.id;           // usa el id existente
+        if (u != null) return u.id;
         u = new User();
         u.email = email;
         u.passwordHash = PasswordUtils.sha256(pass);
         u.rol = rol;
         u.createdAt = System.currentTimeMillis();
-        return udao.insert(u);                // devuelve el id autogenerado
+        return udao.insert(u);
     }
 
     private static String getCurrentDateString() {
@@ -196,6 +251,65 @@ public final class DemoSeeder {
         } catch (Exception e) {
             Log.w(TAG, "Error verificando si está seeded, asumiendo que no", e);
             return false; // En caso de error, forzar re-seeding
+        }
+    }
+
+    /**
+     * ✅ NUEVO: Sincronizar recolectores desde la API de GlassFish
+     * Descarga los recolectores definidos en el servidor y los guarda en Room
+     */
+    private static void syncRecolectoresFromAPI(Context ctx) {
+        new Thread(() -> {
+            try {
+                Log.d(TAG, "📡 Sincronizando recolectores desde API GlassFish...");
+
+                // ✅ CORREGIDO: Usar RecolectorApi en lugar de UserApi
+                com.hfad.encomiendas.api.RecolectorApi api = ApiClient.getRecolectorApi();
+                retrofit2.Response<List<Recolector>> response = api.getAllRecolectores().execute();
+
+                if (response.isSuccessful() && response.body() != null) {
+                    List<Recolector> recolectoresAPI = response.body();
+                    Log.d(TAG, "✅ Descargados " + recolectoresAPI.size() + " recolectores de la API");
+
+                    AppDatabase db = AppDatabase.getInstance(ctx);
+                    RecolectorDao rdao = db.recolectorDao();
+
+                    for (Recolector recolector : recolectoresAPI) {
+                        try {
+                            // ✅ CORREGIDO: Usar userEmail en lugar de email
+                            Recolector existente = rdao.findByUserEmail(recolector.userEmail);
+
+                            if (existente != null) {
+                                // Actualizar si existe
+                                recolector.id = existente.id;
+                                rdao.update(recolector);
+                                Log.d(TAG, "📝 Actualizado recolector: " + recolector.nombre);
+                            } else {
+                                // Insertar si no existe
+                                rdao.insert(recolector);
+                                Log.d(TAG, "➕ Insertado recolector: " + recolector.nombre);
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "❌ Error procesando recolector: " + e.getMessage());
+                        }
+                    }
+
+                    Log.d(TAG, "💾 ✅ Recolectores sincronizados correctamente desde API");
+
+                } else {
+                    Log.e(TAG, "❌ Error en respuesta API de recolectores: " + response.code());
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "❌ Error conectando con API de recolectores: " + e.getMessage());
+            }
+        }).start();
+
+        // Esperar un momento para que se complete la sincronización
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 }

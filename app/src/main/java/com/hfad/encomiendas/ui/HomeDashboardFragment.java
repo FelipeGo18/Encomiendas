@@ -276,10 +276,15 @@ public class HomeDashboardFragment extends Fragment {
 
             h.tvGuiaEstado.setText(nn(s.guia) + "  •  " + nn(s.estado));
 
-            String fecha = dfFecha.format(new Date(s.ventanaInicioMillis));
-            String hIni  = dfHora.format(new Date(s.ventanaInicioMillis));
-            String hFin  = dfHora.format(new Date(s.ventanaFinMillis));
-            h.tvRango.setText(fecha + ", " + hIni + " - " + hFin);
+            // ✅ CORREGIDO: Validar que ventanaInicioMillis y ventanaFinMillis no sean null
+            if (s.ventanaInicioMillis != null && s.ventanaFinMillis != null) {
+                String fecha = dfFecha.format(new Date(s.ventanaInicioMillis));
+                String hIni  = dfHora.format(new Date(s.ventanaInicioMillis));
+                String hFin  = dfHora.format(new Date(s.ventanaFinMillis));
+                h.tvRango.setText(fecha + ", " + hIni + " - " + hFin);
+            } else {
+                h.tvRango.setText("Fecha pendiente");
+            }
 
             h.tvEta.setText("ETA: " + prettyEta(it.eta));
             h.tvDireccion.setText( normalizeAddress(s.direccion) );

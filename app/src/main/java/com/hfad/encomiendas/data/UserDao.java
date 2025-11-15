@@ -4,13 +4,16 @@ import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
+import androidx.room.Update;
 
 import java.util.List;
 
 @Dao
 public interface UserDao {
-    @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)  // ⭐ CAMBIAR A IGNORE
     long insert(User u);
+
+
 
     @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
     User findByEmail(String email);
@@ -36,4 +39,22 @@ public interface UserDao {
 
     @Query("SELECT rol, COUNT(*) as count FROM users GROUP BY rol")
     List<RolCount> getCountByRol();
+
+    @Update
+    void update(User user);
+
+    @androidx.room.Delete
+    void delete(User user);
+
+    /**
+     * Obtener todos los usuarios como lista (para sincronización)
+     */
+    @Query("SELECT * FROM users")
+    List<User> getAllUsersList();
+
+    /**
+     * ⭐ Eliminar usuarios duplicados manteniendo solo el primero
+     */
+    @Query("DELETE FROM users WHERE id NOT IN (SELECT MIN(id) FROM users GROUP BY email)")
+    void deleteDuplicates();
 }

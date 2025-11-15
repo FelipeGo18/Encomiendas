@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
                 Slot.class,
                 Rating.class
         },
-        version = 27, // Corregir versión a 27
+        version = 28, // ✅ INCREMENTADO: Cambio en Solicitud.ventanaFinMillis de long a Long
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {

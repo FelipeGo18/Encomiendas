@@ -13,10 +13,13 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.hfad.encomiendas.R;
+import com.hfad.encomiendas.api.ApiClient;
+import com.hfad.encomiendas.api.UserApi;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.FechaCount;
 import com.hfad.encomiendas.data.RecolectorStats;
 import com.hfad.encomiendas.data.RolCount;
+import com.hfad.encomiendas.data.User;
 
 import java.util.Calendar;
 import java.util.List;
@@ -66,8 +69,62 @@ public class EstadisticasFragment extends Fragment {
         rvSolicitudesPorDia.setLayoutManager(new LinearLayoutManager(getContext()));
         rvTopRecolectores.setLayoutManager(new LinearLayoutManager(getContext()));
 
-        // Cargar estadísticas
-        cargarEstadisticas();
+        // ⭐ Sincronizar PRIMERO, luego cargar estadísticas
+        sincronizarYCargarEstadisticas();
+    }
+
+    /**
+     * ⭐ Sincronizar datos del servidor y luego cargar estadísticas
+     * Garantiza que las estadísticas se cargan DESPUÉS de la sincronización
+     */
+    private void sincronizarYCargarEstadisticas() {
+        new Thread(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(requireContext());
+
+                // PASO 0: Limpiar duplicados primero
+                db.userDao().deleteDuplicates();
+                android.util.Log.d("EstadisticasFragment", "🧹 Duplicados eliminados");
+
+                // PASO 1: Sincronizar usuarios del servidor
+                UserApi api = ApiClient.getUserApi();
+                retrofit2.Response<List<User>> response = api.getAllUsers().execute();
+
+                if (response.isSuccessful() && response.body() != null) {
+                    List<User> usuariosAPI = response.body();
+
+                    android.util.Log.d("EstadisticasFragment",
+                            "📡 Descargados " + usuariosAPI.size() + " usuarios del servidor");
+
+                    int insertados = 0;
+                    // Insertar usuarios (IGNORE evita duplicados)
+                    for (User user : usuariosAPI) {
+                        try {
+                            long result = db.userDao().insert(user);
+                            if (result != -1) {
+                                insertados++;
+                            }
+                        } catch (Exception e) {
+                            android.util.Log.e("EstadisticasFragment", "Error insertando: " + user.email);
+                        }
+                    }
+
+                    // Verificar cuántos usuarios hay ahora en la BD local
+                    int totalEnBD = db.userDao().getTotalUsuarios();
+                    android.util.Log.d("EstadisticasFragment",
+                            "✅ Sincronización: " + insertados + " nuevos. Total en BD: " + totalEnBD);
+                } else {
+                    android.util.Log.e("EstadisticasFragment",
+                            "❌ Error en respuesta API: " + response.code());
+                }
+            } catch (Exception e) {
+                android.util.Log.e("EstadisticasFragment", "❌ Error sincronizando: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            // PASO 2: Cargar estadísticas (DESPUÉS de sincronizar)
+            cargarEstadisticas();
+        }).start();
     }
 
     private void cargarEstadisticas() {

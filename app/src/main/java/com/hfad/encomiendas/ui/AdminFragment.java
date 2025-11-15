@@ -2,6 +2,7 @@ package com.hfad.encomiendas.ui;
 
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,18 +32,25 @@ import com.github.mikephil.charting.data.PieEntry;
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
 import com.github.mikephil.charting.formatter.ValueFormatter;
 import com.hfad.encomiendas.R;
+import com.hfad.encomiendas.api.ApiClient;
+import com.hfad.encomiendas.api.UserApi;
 import com.hfad.encomiendas.core.SessionManager;
 import com.hfad.encomiendas.data.AppDatabase;
 import com.hfad.encomiendas.data.FechaCount;
 import com.hfad.encomiendas.data.RolCount;
+import com.hfad.encomiendas.data.User;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
-import java.util.Locale;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class AdminFragment extends Fragment {
+
+    private static final String TAG = "AdminFragment";
 
     private TextView tvAdminEmail;
     private TextView tvTotalSolicitudes;
@@ -51,6 +59,9 @@ public class AdminFragment extends Fragment {
     private CardView cardEstadisticas;
     private CardView cardGestionUsuarios;
     private CardView cardConfiguracion;
+
+    // Nuevo botón de sincronización
+    private com.google.android.material.button.MaterialButton btnSincronizarAPI;
 
     private BarChart chartSolicitudesPorEstado;
     private PieChart chartUsuariosPorRol;
@@ -79,6 +90,9 @@ public class AdminFragment extends Fragment {
         cardGestionUsuarios = view.findViewById(R.id.cardGestionUsuarios);
         cardConfiguracion = view.findViewById(R.id.cardConfiguracion);
 
+        // Inicializar botón de sincronización
+        btnSincronizarAPI = view.findViewById(R.id.btnSincronizarAPI);
+
         chartSolicitudesPorEstado = view.findViewById(R.id.chartSolicitudesPorEstado);
         chartUsuariosPorRol = view.findViewById(R.id.chartUsuariosPorRol);
         chartSolicitudesUltimos7Dias = view.findViewById(R.id.chartSolicitudesUltimos7Dias);
@@ -96,6 +110,77 @@ public class AdminFragment extends Fragment {
         cardConfiguracion.setOnClickListener(v -> {
             Toast.makeText(requireContext(), "Configuración del Sistema - En desarrollo", Toast.LENGTH_SHORT).show();
         });
+
+        // Listener para botón de sincronización
+        btnSincronizarAPI.setOnClickListener(v -> {
+            sincronizarRoomConAPI();
+        });
+    }
+
+    /**
+     * Sincronizar datos BIDIRECCIONAL: Room ↔ API
+     * 1. Sube usuarios de Room a la API
+     * 2. Descarga usuarios de la API a Room
+     */
+    private void sincronizarRoomConAPI() {
+        btnSincronizarAPI.setEnabled(false);
+        btnSincronizarAPI.setText("🔄 Sincronizando...");
+
+        Toast.makeText(requireContext(), "Iniciando sincronización bidireccional...", Toast.LENGTH_SHORT).show();
+
+        // Usar sincronización bidireccional
+        com.hfad.encomiendas.api.SyncHelper.syncBidirectional(requireContext(),
+            new com.hfad.encomiendas.api.SyncHelper.SyncCallback() {
+            @Override
+            public void onSuccess(String message) {
+                // ⭐ ENVOLVER EN runOnUiThread para actualizar UI de forma segura
+                requireActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return; // Verificar que el fragment sigue activo
+
+                    btnSincronizarAPI.setEnabled(true);
+                    btnSincronizarAPI.setText("✅ Sincronizado");
+
+                    Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show();
+                    Log.d(TAG, message);
+
+                    // Recargar estadísticas con los nuevos datos
+                    cargarEstadisticasLocales();
+
+                    // Volver al texto original después de 3 segundos
+                    btnSincronizarAPI.postDelayed(() -> {
+                        btnSincronizarAPI.setText("🔄 Sincronizar ↕ API");
+                    }, 3000);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                // ⭐ ENVOLVER EN runOnUiThread para actualizar UI de forma segura
+                requireActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return; // Verificar que el fragment sigue activo
+
+                    btnSincronizarAPI.setEnabled(true);
+                    btnSincronizarAPI.setText("❌ Error");
+
+                    Toast.makeText(requireContext(), "Error: " + message, Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "Error sincronización: " + message);
+
+                    // Volver al texto original después de 3 segundos
+                    btnSincronizarAPI.postDelayed(() -> {
+                        btnSincronizarAPI.setText("🔄 Sincronizar ↕ API");
+                    }, 3000);
+                });
+            }
+
+            @Override
+            public void onProgress(int usuariosEnviados, int totalUsuarios) {
+                // ⭐ ENVOLVER EN runOnUiThread para actualizar UI de forma segura
+                requireActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return; // Verificar que el fragment sigue activo
+                    btnSincronizarAPI.setText("🔄 " + usuariosEnviados + "/" + totalUsuarios);
+                });
+            }
+        });
     }
 
     private void loadAdminInfo() {
@@ -108,10 +193,87 @@ public class AdminFragment extends Fragment {
     }
 
     private void loadStatistics() {
+        // PRIMERO: Intentar cargar desde la API
+        sincronizarUsuariosDesdeAPI();
+
+        // SEGUNDO: Cargar datos locales (Room) mientras tanto
+        cargarEstadisticasLocales();
+    }
+
+    /**
+     * NUEVO MÉTODO: Sincronizar usuarios desde la API y guardar en Room
+     */
+    private void sincronizarUsuariosDesdeAPI() {
+        UserApi api = ApiClient.getUserApi();
+
+        api.getAllUsers().enqueue(new Callback<List<User>>() {
+            @Override
+            public void onResponse(@NonNull Call<List<User>> call, @NonNull Response<List<User>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    List<User> usuariosAPI = response.body();
+                    Log.d(TAG, "✅ Usuarios obtenidos de la API: " + usuariosAPI.size());
+
+                    // Guardar en Room (cache local) en segundo plano
+                    new Thread(() -> {
+                        AppDatabase db = AppDatabase.getInstance(requireContext());
+
+                        // Actualizar Room con los datos frescos de la API
+                        for (User user : usuariosAPI) {
+                            try {
+                                // Buscar por EMAIL (que es único), no por ID
+                                User existente = db.userDao().findByEmail(user.email);
+
+                                if (existente != null) {
+                                    // Actualizar usuario existente manteniendo el ID local
+                                    user.id = existente.id; // Mantener el ID de Room
+                                    db.userDao().update(user);
+                                    Log.d(TAG, "📝 Usuario actualizado: " + user.email);
+                                } else {
+                                    // Insertar nuevo usuario
+                                    db.userDao().insert(user);
+                                    Log.d(TAG, "➕ Usuario nuevo insertado: " + user.email);
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "❌ Error sincronizando usuario " + user.email + ": " + e.getMessage());
+                            }
+                        }
+
+                        Log.d(TAG, "💾 Usuarios sincronizados en Room");
+
+                        // Recargar estadísticas con datos actualizados
+                        requireActivity().runOnUiThread(() -> {
+                            cargarEstadisticasLocales();
+                            Toast.makeText(requireContext(),
+                                         "Datos actualizados desde el servidor",
+                                         Toast.LENGTH_SHORT).show();
+                        });
+                    }).start();
+                } else {
+                    Log.e(TAG, "❌ Error en API: " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<List<User>> call, @NonNull Throwable t) {
+                Log.e(TAG, "❌ Error de conexión: " + t.getMessage());
+                // No hacer nada - los datos locales ya se están mostrando
+                requireActivity().runOnUiThread(() -> {
+                    Toast.makeText(requireContext(),
+                                 "Usando datos guardados (sin conexión)",
+                                 Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    /**
+     * RENOMBRADO: Método original que carga desde Room (datos locales)
+     */
+    private void cargarEstadisticasLocales() {
         new Thread(() -> {
             AppDatabase db = AppDatabase.getInstance(requireContext());
 
-            // Estadísticas de solicitudes
+            // Estadísticas de solicitudes (estas siguen siendo locales por ahora)
             int totalSolicitudes = db.solicitudDao().getTotalSolicitudes();
             int pendientes = db.solicitudDao().countSolicitudesByEstado("PENDIENTE");
             int asignadas = db.solicitudDao().countSolicitudesByEstado("ASIGNADA");
@@ -119,7 +281,7 @@ public class AdminFragment extends Fragment {
             int enTransito = db.solicitudDao().countSolicitudesByEstado("EN_TRANSITO");
             int entregadas = db.solicitudDao().countSolicitudesByEstado("ENTREGADA");
 
-            // Estadísticas de usuarios
+            // Estadísticas de usuarios (ahora desde Room, pero sincronizadas con la API)
             int totalUsuarios = db.userDao().getTotalUsuarios();
             List<RolCount> usuariosPorRol = db.userDao().getCountByRol();
 
@@ -311,7 +473,7 @@ public class AdminFragment extends Fragment {
             case "REMITENTE": return "Remitente";
             case "RECOLECTOR": return "Recolector";
             case "REPARTIDOR": return "Repartidor";
-            case "HUB": return "Hub";
+            case "HUB": return "Admin";
             case "ADMIN": return "Admin";
             case "ASIGNADOR": return "Asignador";
             default: return rol;

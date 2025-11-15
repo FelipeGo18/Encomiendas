@@ -1,9 +1,11 @@
 package com.hfad.encomiendas.data;
 
 import androidx.room.Dao;
+import androidx.room.Delete;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
+import androidx.room.Update;
 
 import java.util.List;
 
@@ -202,4 +204,30 @@ public interface SolicitudDao {
         public String horaDesde;
         public String horaHasta;
     }
+
+    // ========== MÉTODOS PARA SINCRONIZACIÓN AUTOMÁTICA ==========
+
+    /**
+     * Buscar solicitud por ID (para sincronización)
+     */
+    @Query("SELECT * FROM Solicitud WHERE id = :id LIMIT 1")
+    Solicitud findById(long id);
+
+    /**
+     * Obtener todas las solicitudes (para sincronización)
+     */
+    @Query("SELECT * FROM Solicitud")
+    List<Solicitud> getAll();
+
+    /**
+     * Actualizar una solicitud completa
+     */
+    @Update
+    void update(Solicitud solicitud);
+
+    /**
+     * Eliminar una solicitud
+     */
+    @Delete
+    void delete(Solicitud solicitud);
 }

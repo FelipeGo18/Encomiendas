@@ -34,6 +34,12 @@ public interface RecolectorDao {
     @Query("SELECT * FROM recolectores WHERE userEmail = :email LIMIT 1")
     Recolector getByUserEmail(String email);
 
+    /**
+     * Buscar recolector por email (alias para sincronización)
+     */
+    @Query("SELECT * FROM recolectores WHERE userEmail = :email LIMIT 1")
+    Recolector findByUserEmail(String email);
+
     @Query("SELECT * FROM recolectores WHERE activo = 1")
     List<Recolector> listActivos();
 

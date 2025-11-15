@@ -29,8 +29,8 @@ public class Solicitud {
     public long fechaEpochMillis;
 
     /** Ventana de atención solicitada */
-    public Long ventanaInicioMillis;  // p.ej. 2025-09-05 14:00
-    public long ventanaFinMillis;     // p.ej. 2025-09-05 16:00
+    @Nullable public Long ventanaInicioMillis;  // p.ej. 2025-09-05 14:00
+    @Nullable public Long ventanaFinMillis;     // p.ej. 2025-09-05 16:00 - CORREGIDO: Long en vez de long
 
     /** Detalles logísticos */
     @NonNull public String tipoPaquete;     // usar arrays.xml
